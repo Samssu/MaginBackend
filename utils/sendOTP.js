@@ -1,22 +1,28 @@
+// utils/sendMail.js
 const nodemailer = require("nodemailer");
 
-const sendOTP = async (email, otp) => {
+const sendMail = async (email, otp) => {
   const transporter = nodemailer.createTransport({
-    service: "Gmail",
+    service: "gmail",
     auth: {
-      user: process.env.EMAIL_FROM,
+      user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
   });
 
   const mailOptions = {
-    from: `"Magang Kominfo" <${process.env.EMAIL_FROM}>`,
+    from: process.env.EMAIL_USER,
     to: email,
-    subject: "Kode OTP Verifikasi Email",
-    text: `Kode OTP Anda adalah: ${otp}`,
+    subject: "OTP Verification",
+    text: `Your OTP is ${otp}. Please use this to complete your registration.`,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log("OTP sent to email!");
+  } catch (error) {
+    console.error("Error sending OTP:", error);
+  }
 };
 
-module.exports = sendOTP;
+module.exports = sendMail;
