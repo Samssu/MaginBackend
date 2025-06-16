@@ -13,11 +13,11 @@ const createAdmin = async () => {
     process.exit();
   }
 
-  const hashedPassword = await bcrypt.hash("miawmiawali", 10);
+  const hashedPassword = await bcrypt.hash("admin123", 10);
 
   const admin = new User({
     name: "Administrator",
-    email: "yadattullah@gmail.com",
+    email: "admin@example.com",
     password: hashedPassword,
     role: "admin",
     isVerified: true,

@@ -6,48 +6,35 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const cors = require("cors");
 const User = require("./models/User");
-const adminAuth = require("./routes/AdminAuth");
 
 const app = express();
 
-// Mengatur CORS untuk pengembangan atau produksi
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 30000,
+    connectTimeoutMS: 30000,
+  })
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => {
+    console.error("MongoDB connection error:", err);
+    process.exit(1);
+  });
+
 app.use(
   cors({
-    origin: "http://localhost:3000", // Atur domain frontend Anda jika perlu
+    origin: "http://localhost:3000",
     methods: "GET,POST,PUT,DELETE",
     credentials: true,
   })
 );
 
-app.use("/api", adminAuth);
-
-// Middleware untuk parsing JSON yang aman dan menangani error
 app.use(express.json());
-app.use((req, res, next) => {
-  try {
-    // Menangani kemungkinan karakter kontrol yang buruk dalam JSON
-    const rawBody = JSON.stringify(req.body);
-    if (/[^\x20-\x7E]/.test(rawBody)) {
-      // Memeriksa karakter tidak valid
-      throw new Error("Invalid character in the request body");
-    }
-    next();
-  } catch (err) {
-    console.error("Invalid character in JSON:", err);
-    return res
-      .status(400)
-      .json({ message: "Bad control character in string literal" });
-  }
-});
 
-// Menghubungkan ke MongoDB
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.error("MongoDB connection error: ", err));
+let temporaryUsers = {}; // Temporary storage for unverified users
 
-// Fungsi untuk mengirim OTP melalui email
-const sendMail = async (email, otp) => {
+const sendMail = async (email, subject, message) => {
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
@@ -59,22 +46,20 @@ const sendMail = async (email, otp) => {
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
-    subject: "OTP Verification",
-    text: `Your OTP is ${otp}. Please use this to complete your registration.`,
+    subject,
+    text: message,
   };
 
   try {
-    console.log(`Sending OTP ${otp} to email ${email}`);
     await transporter.sendMail(mailOptions);
-    console.log("OTP sent to email!");
+    console.log(`Email sent to ${email}`);
   } catch (error) {
-    console.error("Error sending OTP:", error);
+    console.error("Error sending email:", error);
   }
 };
 
-// Route Register
 app.post("/api/register", async (req, res) => {
-  const { email, password } = req.body;
+  const { name, email, password } = req.body;
 
   try {
     const userExists = await User.findOne({ email });
@@ -84,23 +69,23 @@ app.post("/api/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000);
 
-    console.log(`Registering new user with email ${email} and OTP ${otp}`);
-
-    const user = new User({
+    temporaryUsers[email] = {
+      name,
       email,
       password: hashedPassword,
       otp,
       isVerified: false,
+    };
+
+    const token = jwt.sign({ email, otp }, process.env.JWT_SECRET, {
+      expiresIn: "15m",
     });
 
-    await user.save();
-
-    const token = jwt.sign({ otp, email }, process.env.JWT_SECRET, {
-      expiresIn: "5m",
-    });
-
-    // Kirim OTP via email
-    await sendMail(email, otp);
+    await sendMail(
+      email,
+      "OTP Verification",
+      `Your OTP is ${otp}. Please use this to complete your registration.`
+    );
 
     res.status(200).json({ message: "OTP sent to your email", token });
   } catch (error) {
@@ -109,77 +94,163 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-// Route Verify OTP
 app.post("/api/verify-otp", async (req, res) => {
   const { otp, token } = req.body;
 
   if (!otp || !token) {
-    console.log("OTP or token missing in request body");
-    return res.status(400).json({ message: "OTP and token are required" });
+    return res.status(400).send();
   }
 
   try {
-    // Validasi token JWT
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log("Decoded JWT token:", decoded);
+    const { email, otp: storedOtp } = decoded;
 
-    const { otp: storedOtp, email } = decoded;
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      console.log("User not found for email:", email);
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    console.log("Comparing OTPs, input:", otp, "stored:", storedOtp);
     if (parseInt(otp) !== storedOtp) {
-      console.log("OTP does not match");
-      return res.status(400).json({ message: "Invalid OTP" });
+      return res.status(400).send();
     }
 
-    user.isVerified = true;
-    await user.save();
+    if (!temporaryUsers[email]) {
+      return res.status(404).send();
+    }
 
-    console.log("User verified successfully:", email);
-    res.status(200).json({ message: "OTP verified successfully" });
+    const userData = temporaryUsers[email];
+
+    const user = new User({
+      name: userData.name,
+      email: userData.email,
+      password: userData.password,
+      isVerified: true,
+      role: "user",
+    });
+
+    await user.save();
+    delete temporaryUsers[email];
+
+    res.status(200).send();
   } catch (error) {
-    console.error("Verify OTP error:", error);
-    res.status(500).json({ message: "Server error during OTP verification" });
+    console.error("Error verifying OTP:", error);
+    res.status(500).send();
   }
 });
 
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
 
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email dan password diperlukan" });
+  }
+
   try {
-    // Mencari user berdasarkan email
     const user = await User.findOne({ email });
+
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "Pengguna tidak ditemukan" });
     }
 
-    // Memeriksa apakah password cocok dengan yang tersimpan di database
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid password" });
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
+      return res.status(400).json({ message: "Email atau password salah" });
     }
 
-    // Membuat token JWT yang berisi userId dan email
+    if (!user.isVerified) {
+      return res.status(400).json({
+        message: "Email belum diverifikasi. Silakan verifikasi email Anda.",
+      });
+    }
+
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { email: user.email, role: user.role, isVerified: user.isVerified },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" } // Token kadaluarsa dalam 1 jam
+      { expiresIn: "1h" }
     );
 
-    // Mengembalikan token JWT sebagai respons
-    res.status(200).json({ message: "Login successful", token });
+    return res.status(200).json({ token });
   } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ message: "Server error during login" });
+    console.error(error);
+    return res.status(500).json({ message: "Terjadi kesalahan server" });
   }
 });
 
-// Mengatur server untuk mendengarkan di port 5000
+// 🔐 Forgot Password
+app.post("/api/forgot-password", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(404).json({ message: "Email tidak ditemukan" });
+
+    const resetToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "15m",
+    });
+
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 menit dari sekarang
+
+    // Simpan token ke DB
+    await ResetToken.create({
+      userId: user._id,
+      token: resetToken,
+      expiresAt,
+    });
+
+    const resetLink = `http://localhost:3000/reset-password/${resetToken}`;
+
+    await sendMail(
+      email,
+      "Reset Password",
+      `Klik link berikut untuk reset password Anda: ${resetLink}`
+    );
+
+    res.status(200).json({ message: "Link reset berhasil dikirim ke email" });
+  } catch (error) {
+    console.error("Error in forgot password:", error);
+    res.status(500).json({ message: "Gagal mengirim email reset password" });
+  }
+});
+
+// 🔐 Reset Password (hanya bisa digunakan 1x)
+app.post("/api/reset-password/:token", async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const resetTokenDoc = await ResetToken.findOne({
+      token,
+      userId: decoded.id,
+    });
+
+    if (!resetTokenDoc) {
+      return res.status(400).json({ message: "Token tidak ditemukan" });
+    }
+
+    if (resetTokenDoc.used) {
+      return res.status(400).json({ message: "Token sudah digunakan" });
+    }
+
+    if (resetTokenDoc.expiresAt < new Date()) {
+      return res.status(400).json({ message: "Token kedaluwarsa" });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user)
+      return res.status(404).json({ message: "Pengguna tidak ditemukan" });
+
+    user.password = await bcrypt.hash(password, 10);
+    await user.save();
+
+    resetTokenDoc.used = true;
+    await resetTokenDoc.save();
+
+    res.status(200).json({ message: "Password berhasil diubah" });
+  } catch (error) {
+    console.error("Error in reset password:", error);
+    res
+      .status(400)
+      .json({ message: "Token tidak valid atau sudah kedaluwarsa" });
+  }
+});
+
 app.listen(5000, () => {
   console.log("Backend server is running on http://localhost:5000");
 });
