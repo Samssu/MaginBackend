@@ -10,13 +10,13 @@ const resetTokenSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  used: {
-    type: Boolean,
-    default: false,
-  },
   expiresAt: {
     type: Date,
     required: true,
+  },
+  used: {
+    type: Boolean,
+    default: false,
   },
 });
 

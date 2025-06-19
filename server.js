@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const cors = require("cors");
 const User = require("./models/User");
+const ResetToken = require("./models/ResetToken");
 
 const app = express();
 
@@ -248,6 +249,35 @@ app.post("/api/reset-password/:token", async (req, res) => {
     res
       .status(400)
       .json({ message: "Token tidak valid atau sudah kedaluwarsa" });
+  }
+});
+
+// ✅ BUAT AKUN ADMIN (TANPA OTP)
+app.post("/api/create-admin", async (req, res) => {
+  const { name, email, password } = req.body;
+
+  try {
+    const existingAdmin = await User.findOne({ email });
+    if (existingAdmin) {
+      return res.status(400).json({ message: "Email sudah digunakan" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const admin = new User({
+      name,
+      email,
+      password: hashedPassword,
+      role: "admin", // Tandai sebagai admin
+      isVerified: true, // Tidak perlu verifikasi email
+    });
+
+    await admin.save();
+
+    res.status(201).json({ message: "Akun admin berhasil dibuat" });
+  } catch (error) {
+    console.error("Error membuat admin:", error);
+    res.status(500).json({ message: "Gagal membuat akun admin" });
   }
 });
 
