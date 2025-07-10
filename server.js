@@ -5,8 +5,13 @@ const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const cors = require("cors");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
 const User = require("./models/User");
 const ResetToken = require("./models/ResetToken");
+const Pendaftaran = require("./models/Pendaftaran");
 
 const app = express();
 
@@ -33,7 +38,22 @@ app.use(
 
 app.use(express.json());
 
-let temporaryUsers = {}; // Temporary storage for unverified users
+// Konfigurasi multer untuk file upload
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = `${Date.now()}-${file.originalname}`;
+    cb(null, uniqueName);
+  },
+});
+
+const upload = multer({ storage });
+
+let temporaryUsers = {}; // Penyimpanan sementara user OTP
 
 const sendMail = async (email, subject, message) => {
   const transporter = nodemailer.createTransport({
@@ -59,6 +79,7 @@ const sendMail = async (email, subject, message) => {
   }
 };
 
+// 📩 API REGISTER (OTP)
 app.post("/api/register", async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -95,27 +116,20 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
+// 📩 VERIFIKASI OTP
 app.post("/api/verify-otp", async (req, res) => {
   const { otp, token } = req.body;
 
-  if (!otp || !token) {
-    return res.status(400).send();
-  }
+  if (!otp || !token) return res.status(400).send();
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const { email, otp: storedOtp } = decoded;
 
-    if (parseInt(otp) !== storedOtp) {
-      return res.status(400).send();
-    }
-
-    if (!temporaryUsers[email]) {
-      return res.status(404).send();
-    }
+    if (parseInt(otp) !== storedOtp) return res.status(400).send();
+    if (!temporaryUsers[email]) return res.status(404).send();
 
     const userData = temporaryUsers[email];
-
     const user = new User({
       name: userData.name,
       email: userData.email,
@@ -126,7 +140,6 @@ app.post("/api/verify-otp", async (req, res) => {
 
     await user.save();
     delete temporaryUsers[email];
-
     res.status(200).send();
   } catch (error) {
     console.error("Error verifying OTP:", error);
@@ -134,30 +147,25 @@ app.post("/api/verify-otp", async (req, res) => {
   }
 });
 
+// 🔐 LOGIN
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
-
-  if (!email || !password) {
+  if (!email || !password)
     return res.status(400).json({ message: "Email dan password diperlukan" });
-  }
 
   try {
     const user = await User.findOne({ email });
-
-    if (!user) {
+    if (!user)
       return res.status(404).json({ message: "Pengguna tidak ditemukan" });
-    }
 
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
-    if (!isPasswordCorrect) {
+    if (!isPasswordCorrect)
       return res.status(400).json({ message: "Email atau password salah" });
-    }
 
-    if (!user.isVerified) {
+    if (!user.isVerified)
       return res.status(400).json({
         message: "Email belum diverifikasi. Silakan verifikasi email Anda.",
       });
-    }
 
     const token = jwt.sign(
       { email: user.email, role: user.role, isVerified: user.isVerified },
@@ -172,7 +180,7 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// 🔐 Forgot Password
+// 🔁 LUPA PASSWORD
 app.post("/api/forgot-password", async (req, res) => {
   const { email } = req.body;
 
@@ -185,17 +193,11 @@ app.post("/api/forgot-password", async (req, res) => {
       expiresIn: "15m",
     });
 
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 menit dari sekarang
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    // Simpan token ke DB
-    await ResetToken.create({
-      userId: user._id,
-      token: resetToken,
-      expiresAt,
-    });
+    await ResetToken.create({ userId: user._id, token: resetToken, expiresAt });
 
     const resetLink = `http://localhost:3000/reset-password/${resetToken}`;
-
     await sendMail(
       email,
       "Reset Password",
@@ -209,7 +211,7 @@ app.post("/api/forgot-password", async (req, res) => {
   }
 });
 
-// 🔐 Reset Password (hanya bisa digunakan 1x)
+// 🔁 RESET PASSWORD
 app.post("/api/reset-password/:token", async (req, res) => {
   const { token } = req.params;
   const { password } = req.body;
@@ -221,17 +223,14 @@ app.post("/api/reset-password/:token", async (req, res) => {
       userId: decoded.id,
     });
 
-    if (!resetTokenDoc) {
+    if (!resetTokenDoc)
       return res.status(400).json({ message: "Token tidak ditemukan" });
-    }
 
-    if (resetTokenDoc.used) {
+    if (resetTokenDoc.used)
       return res.status(400).json({ message: "Token sudah digunakan" });
-    }
 
-    if (resetTokenDoc.expiresAt < new Date()) {
+    if (resetTokenDoc.expiresAt < new Date())
       return res.status(400).json({ message: "Token kedaluwarsa" });
-    }
 
     const user = await User.findById(decoded.id);
     if (!user)
@@ -246,34 +245,29 @@ app.post("/api/reset-password/:token", async (req, res) => {
     res.status(200).json({ message: "Password berhasil diubah" });
   } catch (error) {
     console.error("Error in reset password:", error);
-    res
-      .status(400)
-      .json({ message: "Token tidak valid atau sudah kedaluwarsa" });
+    res.status(400).json({ message: "Token tidak valid atau kedaluwarsa" });
   }
 });
 
-// ✅ BUAT AKUN ADMIN (TANPA OTP)
+// ✅ BUAT ADMIN LANGSUNG (tanpa OTP)
 app.post("/api/create-admin", async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
     const existingAdmin = await User.findOne({ email });
-    if (existingAdmin) {
+    if (existingAdmin)
       return res.status(400).json({ message: "Email sudah digunakan" });
-    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const admin = new User({
       name,
       email,
       password: hashedPassword,
-      role: "admin", // Tandai sebagai admin
-      isVerified: true, // Tidak perlu verifikasi email
+      role: "admin",
+      isVerified: true,
     });
 
     await admin.save();
-
     res.status(201).json({ message: "Akun admin berhasil dibuat" });
   } catch (error) {
     console.error("Error membuat admin:", error);
@@ -282,5 +276,5 @@ app.post("/api/create-admin", async (req, res) => {
 });
 
 app.listen(5000, () => {
-  console.log("Backend server is running on http://localhost:5000");
+  console.log("✅ Backend server running on http://localhost:5000");
 });
