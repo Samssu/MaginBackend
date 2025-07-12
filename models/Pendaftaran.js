@@ -1,9 +1,8 @@
-// models/Pendaftaran.js
 const mongoose = require("mongoose");
 
 const PendaftaranSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
-  nama: String,
+  nama: { type: String, required: true },
   ttl: String,
   tanggalLahir: String,
   jenisKelamin: String,
@@ -25,6 +24,17 @@ const PendaftaranSchema = new mongoose.Schema({
   ktpAtauKtm: String,
   transkrip: String,
   rekomendasi: String,
+
+  // ✅ Tambahkan status dan tanggal pendaftaran
+  status: {
+    type: String,
+    enum: ["pending", "disetujui", "ditolak"],
+    default: "pending",
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
 module.exports = mongoose.model("Pendaftaran", PendaftaranSchema);

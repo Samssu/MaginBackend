@@ -278,3 +278,132 @@ app.post("/api/create-admin", async (req, res) => {
 app.listen(5000, () => {
   console.log("✅ Backend server running on http://localhost:5000");
 });
+
+//Pendaftaran
+app.post(
+  "/api/pendaftaran",
+  upload.fields([
+    { name: "suratPengantar" },
+    { name: "cv" },
+    { name: "foto" },
+    { name: "ktm" },
+    { name: "transkrip" },
+    { name: "rekomendasi" },
+  ]),
+  async (req, res) => {
+    try {
+      const email = req.body.email;
+
+      // Cek apakah sudah pernah mendaftar
+      const existing = await Pendaftaran.findOne({ email });
+      if (existing) {
+        return res
+          .status(409)
+          .json({ message: "Email sudah digunakan untuk mendaftar." });
+      }
+
+      const newPendaftaran = new Pendaftaran({
+        ...req.body,
+        suratPengantar: req.files?.suratPengantar?.[0]?.filename || "",
+        cv: req.files?.cv?.[0]?.filename || "",
+        foto: req.files?.foto?.[0]?.filename || "",
+        ktpAtauKtm: req.files?.ktm?.[0]?.filename || "",
+        transkrip: req.files?.transkrip?.[0]?.filename || "",
+        rekomendasi: req.files?.rekomendasi?.[0]?.filename || "",
+      });
+
+      await newPendaftaran.save();
+
+      return res.status(201).json({ message: "Pendaftaran berhasil disimpan" });
+    } catch (err) {
+      console.error("❌ Gagal menyimpan pendaftaran:", err);
+      if (err.code === 11000 && err.keyPattern.email) {
+        return res
+          .status(409)
+          .json({ message: "Email sudah digunakan untuk mendaftar." });
+      }
+      return res.status(500).json({ message: "Gagal menyimpan pendaftaran" });
+    }
+  }
+);
+
+// Get all pendaftar
+app.get("/api/pendaftaran", async (req, res) => {
+  try {
+    const data = await Pendaftaran.find();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: "Gagal mengambil data pendaftaran" });
+  }
+});
+
+// Update data pendaftar (edit atau setujui/tolak)
+app.put("/api/pendaftaran/:id", async (req, res) => {
+  try {
+    const updated = await Pendaftaran.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: "Gagal memperbarui data" });
+  }
+});
+
+// Statistik
+app.get("/api/pendaftaran/stats", async (req, res) => {
+  const total = await Pendaftaran.countDocuments();
+  const newCount = await Pendaftaran.countDocuments({ status: "pending" });
+  const approved = await Pendaftaran.countDocuments({ status: "disetujui" });
+  const rejected = await Pendaftaran.countDocuments({ status: "ditolak" });
+
+  const last7 = await Pendaftaran.aggregate([
+    { $match: {} },
+    {
+      $group: {
+        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { _id: 1 } },
+    { $limit: 7 },
+  ]);
+
+  res.json({
+    total,
+    new: newCount,
+    approved,
+    rejected,
+    daily: last7.map((doc) => ({ date: doc._id, count: doc.count })),
+  });
+});
+
+// Recent Activity
+app.get("/api/pendaftaran/recent", async (req, res) => {
+  const recent = await Pendaftaran.find().sort({ createdAt: -1 }).limit(10);
+  res.json(recent);
+});
+
+// routes/pembimbing.js
+router.get("/", async (req, res) => {
+  try {
+    const data = await Pembimbing.find();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: "Gagal mengambil data pembimbing" });
+  }
+});
+
+// PUT /api/pendaftaran/:id
+router.put("/:id", async (req, res) => {
+  const data = req.body;
+  try {
+    const updated = await Pendaftaran.findByIdAndUpdate(req.params.id, data, {
+      new: true,
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: "Gagal mengupdate data" });
+  }
+});
