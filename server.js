@@ -12,6 +12,7 @@ const fs = require("fs");
 const User = require("./models/User");
 const ResetToken = require("./models/ResetToken");
 const Pendaftaran = require("./models/Pendaftaran");
+const Pembimbing = require("./models/Pembimbing");
 
 const app = express();
 
@@ -351,59 +352,123 @@ app.put("/api/pendaftaran/:id", async (req, res) => {
   }
 });
 
-// Statistik
-app.get("/api/pendaftaran/stats", async (req, res) => {
-  const total = await Pendaftaran.countDocuments();
-  const newCount = await Pendaftaran.countDocuments({ status: "pending" });
-  const approved = await Pendaftaran.countDocuments({ status: "disetujui" });
-  const rejected = await Pendaftaran.countDocuments({ status: "ditolak" });
-
-  const last7 = await Pendaftaran.aggregate([
-    { $match: {} },
-    {
-      $group: {
-        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-        count: { $sum: 1 },
-      },
-    },
-    { $sort: { _id: 1 } },
-    { $limit: 7 },
-  ]);
-
-  res.json({
-    total,
-    new: newCount,
-    approved,
-    rejected,
-    daily: last7.map((doc) => ({ date: doc._id, count: doc.count })),
-  });
-});
-
-// Recent Activity
-app.get("/api/pendaftaran/recent", async (req, res) => {
-  const recent = await Pendaftaran.find().sort({ createdAt: -1 }).limit(10);
-  res.json(recent);
-});
-
-// routes/pembimbing.js
-router.get("/", async (req, res) => {
+// Statistik total
+app.get("/admin/statistik", async (req, res) => {
   try {
-    const data = await Pembimbing.find();
-    res.json(data);
+    const totalPendaftar = await Pendaftaran.countDocuments();
+    const totalDisetujui = await Pendaftaran.countDocuments({
+      status: "disetujui",
+    });
+    const totalMenunggu = await Pendaftaran.countDocuments({
+      status: "menunggu",
+    });
+    const totalLogbook = await Logbook.countDocuments();
+
+    res.json({
+      totalPendaftar,
+      totalDisetujui,
+      totalMenunggu,
+      totalLogbook,
+    });
   } catch (err) {
-    res.status(500).json({ message: "Gagal mengambil data pembimbing" });
+    res.status(500).json({ message: "Gagal mengambil data statistik" });
   }
 });
 
-// PUT /api/pendaftaran/:id
-router.put("/:id", async (req, res) => {
-  const data = req.body;
+// Aktivitas terbaru
+app.get("/admin/aktivitas-terbaru", async (req, res) => {
   try {
-    const updated = await Pendaftaran.findByIdAndUpdate(req.params.id, data, {
-      new: true,
+    const daftarTerbaru = await Pendaftaran.find()
+      .sort({ createdAt: -1 })
+      .limit(5);
+    const logbookTerbaru = await Logbook.find()
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    const aktivitas = [];
+
+    daftarTerbaru.forEach((item) => {
+      aktivitas.push({
+        type:
+          item.status === "disetujui"
+            ? "disetujui"
+            : item.status === "ditolak"
+            ? "ditolak"
+            : "pendaftaran",
+        message: `${item.namaLengkap} ${
+          item.status === "menunggu"
+            ? "mengirim pendaftaran"
+            : "status: " + item.status
+        }`,
+        timestamp: new Date(item.createdAt).toLocaleString("id-ID"),
+      });
     });
-    res.json(updated);
+
+    logbookTerbaru.forEach((log) => {
+      aktivitas.push({
+        type: "logbook",
+        message: `${log.nama} mengisi logbook: "${log.judul}"`,
+        timestamp: new Date(log.createdAt).toLocaleString("id-ID"),
+      });
+    });
+
+    // Urutkan gabungan berdasarkan waktu terbaru
+    aktivitas.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    res.json(aktivitas.slice(0, 10));
+  } catch (err) {
+    res.status(500).json({ message: "Gagal mengambil aktivitas terbaru" });
+  }
+});
+
+// Endpoint ambil riwayat pendaftaran user
+app.get("/riwayat/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+    const data = await Pendaftaran.findOne({ email });
+
+    if (!data) {
+      return res.status(404).json({ message: "Riwayat tidak ditemukan" });
+    }
+
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+const logbookRoutes = require("./routes/logbookRoutes");
+app.use("/api/logbook", logbookRoutes);
+
+app.use(
+  "/uploads/logbooks",
+  express.static(path.join(__dirname, "uploads/logbooks"))
+);
+
+// Tambah Pembimbing
+app.post("/pembimbing", async (req, res) => {
+  try {
+    const { nama, email, divisi, jumlahMahasiswa, status } = req.body;
+    const pembimbing = new Pembimbing({
+      nama,
+      email,
+      divisi,
+      jumlahMahasiswa,
+      status,
+    });
+    await pembimbing.save();
+    res.status(201).json({ message: "Pembimbing ditambahkan", pembimbing });
   } catch (error) {
-    res.status(500).json({ error: "Gagal mengupdate data" });
+    res.status(500).json({ message: "Gagal menambahkan pembimbing", error });
+  }
+});
+
+// Ambil Semua Pembimbing
+app.get("/pembimbing", async (req, res) => {
+  try {
+    const pembimbings = await Pembimbing.find();
+    res.status(200).json(pembimbings);
+  } catch (error) {
+    res.status(500).json({ message: "Gagal mengambil data pembimbing", error });
   }
 });
