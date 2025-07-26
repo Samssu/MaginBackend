@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
-      match: [/\S+@\S+\.\S+/, "Please enter a valid email address"], // Validasi email
+      match: [/\S+@\S+\.\S+/, "Please enter a valid email address"],
     },
     password: {
       type: String,
@@ -14,11 +14,11 @@ const userSchema = new mongoose.Schema(
     },
     otp: {
       type: Number,
-      required: false, // Jadikan tidak wajib
+      required: false,
     },
     otpExpires: {
       type: Date,
-      required: false, // Hanya diperlukan jika OTP ada
+      required: false,
     },
     isVerified: {
       type: Boolean,
@@ -26,9 +26,14 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["user", "admin", "pembimbing"], // Menambahkan pembimbing sebagai role
+      enum: ["user", "admin", "pembimbing"],
       default: "user",
     },
+
+    name: { type: String },
+    asalKampus: { type: String },
+    semester: { type: String },
+    jurusan: { type: String },
   },
   { timestamps: true }
 );

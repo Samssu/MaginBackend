@@ -12,7 +12,7 @@ const fs = require("fs");
 const User = require("./models/User");
 const ResetToken = require("./models/ResetToken");
 const Pendaftaran = require("./models/Pendaftaran");
-const Pembimbing = require("./models/Pembimbing");
+const Pembimbing = require("./models/pembimbing");
 
 const app = express();
 
@@ -445,30 +445,74 @@ app.use(
   express.static(path.join(__dirname, "uploads/logbooks"))
 );
 
-// Tambah Pembimbing
+// ✅ Endpoint untuk buat akun pembimbing langsung
 app.post("/pembimbing", async (req, res) => {
   try {
-    const { nama, email, divisi, jumlahMahasiswa, status } = req.body;
-    const pembimbing = new Pembimbing({
+    const { nama, email, password, divisi } = req.body;
+
+    // cek jika email sudah ada
+    const existing = await Pembimbing.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ message: "Email sudah digunakan" });
+    }
+
+    // hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newPembimbing = new Pembimbing({
       nama,
       email,
+      password: hashedPassword,
       divisi,
-      jumlahMahasiswa,
-      status,
+      status: "aktif", // langsung aktif
     });
-    await pembimbing.save();
-    res.status(201).json({ message: "Pembimbing ditambahkan", pembimbing });
-  } catch (error) {
-    res.status(500).json({ message: "Gagal menambahkan pembimbing", error });
+
+    await newPembimbing.save();
+    res.status(201).json({ message: "Pembimbing berhasil ditambahkan" });
+  } catch (err) {
+    console.error("Error tambah pembimbing:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-// Ambil Semua Pembimbing
-app.get("/pembimbing", async (req, res) => {
+// GET semua pembimbing
+app.get("/api/pembimbing", async (req, res) => {
   try {
-    const pembimbings = await Pembimbing.find();
-    res.status(200).json(pembimbings);
+    const pembimbing = await Pembimbing.find();
+    res.json(pembimbing);
+  } catch (err) {
+    console.error("Error ambil pembimbing:", err.message);
+    res.status(500).json({ message: "Gagal mengambil data" });
+  }
+});
+
+// ✏️ Edit Profile User
+app.put("/api/user/:id/edit-profile", async (req, res) => {
+  const userId = req.params.id;
+  const { name, asalKampus, semester, jurusan } = req.body;
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        name,
+        asalKampus,
+        semester,
+        jurusan,
+      },
+      { new: true } // Return user setelah update
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User tidak ditemukan" });
+    }
+
+    res.status(200).json({
+      message: "Profile berhasil diperbarui",
+      user: updatedUser,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Gagal mengambil data pembimbing", error });
+    console.error("Gagal update profile:", error);
+    res.status(500).json({ message: "Terjadi kesalahan server" });
   }
 });
