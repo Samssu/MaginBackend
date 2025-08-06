@@ -12,15 +12,30 @@ const Logbook = require("../models/logbook");
 // Middleware otentikasi token
 const authenticate = async (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ message: "Token diperlukan" });
+
+  if (!token) {
+    return res.status(401).json({ message: "Token diperlukan" });
+  }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findOne({ email: decoded.email });
-    if (!user) return res.status(401).json({ message: "User tidak ditemukan" });
+
+    // Check for either email or id in the token
+    let user;
+    if (decoded.email) {
+      user = await User.findOne({ email: decoded.email });
+    } else if (decoded.id) {
+      user = await User.findById(decoded.id);
+    }
+
+    if (!user) {
+      return res.status(401).json({ message: "User tidak ditemukan" });
+    }
+
     req.user = user;
     next();
   } catch (err) {
+    console.error("Token verification failed:", err);
     return res.status(401).json({ message: "Token tidak valid" });
   }
 };

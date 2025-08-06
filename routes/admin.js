@@ -29,3 +29,26 @@ const createAdmin = async () => {
 };
 
 createAdmin();
+
+// routes/admin.js
+const express = require("express");
+const router = express.Router();
+const Pendaftaran = require("../models/Pendaftaran");
+const Logbook = require("../models/logbook");
+
+router.get("/statistik", async (req, res) => {
+  try {
+    const totalPendaftar = await Pendaftaran.countDocuments();
+    const totalDisetujui = await Pendaftaran.countDocuments({
+      status: "disetujui",
+    });
+    const totalMenunggu = await Pendaftaran.countDocuments({
+      status: "menunggu",
+    });
+    const totalLogbook = await Logbook.countDocuments();
+
+    res.json({ totalPendaftar, totalDisetujui, totalMenunggu, totalLogbook });
+  } catch (error) {
+    res.status(500).json({ message: "Gagal mengambil data statistik" });
+  }
+});

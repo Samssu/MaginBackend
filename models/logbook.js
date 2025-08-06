@@ -1,14 +1,16 @@
-// models/Logbook.js
 const mongoose = require("mongoose");
-const { Schema } = mongoose;
 
-const logbookSchema = new Schema(
+const logbookSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     title: { type: String, required: true },
     content: { type: String, required: true },
-    report: { type: String },
-    comment: { type: String, default: "" }, // komentar pembimbing
+    report: String, // Path to uploaded file
+    comment: String, // Comment from supervisor
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    pendaftaran: { type: mongoose.Schema.Types.ObjectId, ref: "Pendaftaran" }, // Tambahkan ini
+    report: String,
+    comment: String,
+    createdAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );

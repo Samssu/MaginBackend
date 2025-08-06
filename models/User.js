@@ -29,6 +29,7 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "admin", "pembimbing"],
       default: "user",
     },
+    refreshToken: { type: String, default: "" }, // Menyimpan refresh token
 
     name: { type: String },
     asalKampus: { type: String },
