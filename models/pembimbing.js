@@ -35,6 +35,10 @@ const pembimbingSchema = new mongoose.Schema({
     enum: ["pembimbing"],
     default: "pembimbing",
   },
+  pembimbing: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Pembimbing",
+  },
   jumlahMahasiswa: {
     type: Number,
     default: 0,

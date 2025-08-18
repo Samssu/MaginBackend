@@ -17,6 +17,10 @@ const Pembimbing = require("./models/pembimbing");
 
 const app = express();
 
+//########################################################################################################################################################################
+// mongoDB Check | Limit ation: 500MB | multer
+//########################################################################################################################################################################
+
 mongoose
   .connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
@@ -64,6 +68,24 @@ const upload = multer({ storage });
 
 let temporaryUsers = {}; // Penyimpanan sementara user OTP
 
+const laporanStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, "uploads/laporan");
+    if (!fs.existsSync(uploadPath))
+      fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = `${Date.now()}-${file.originalname}`;
+    cb(null, uniqueName);
+  },
+});
+
+const uploadLaporan = multer({
+  storage: laporanStorage,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+});
+
 const sendMail = async (email, subject, message) => {
   const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -88,6 +110,10 @@ const sendMail = async (email, subject, message) => {
   }
 };
 
+//########################################################################################################################################################################
+// (Backend) Login,Register,Lupa Passowrd,Reset Password, verifikasi Email, Sendemail, Logout
+//########################################################################################################################################################################
+
 // 📩 API REGISTER (OTP)
 app.post("/api/register", async (req, res) => {
   const { name, email, password } = req.body;
@@ -95,7 +121,7 @@ app.post("/api/register", async (req, res) => {
   try {
     const userExists = await User.findOne({ email });
     if (userExists)
-      return res.status(400).json({ message: "Email already registered" });
+      return res.status(400).json({ message: "Email sudah terdaftar" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000);
@@ -112,16 +138,61 @@ app.post("/api/register", async (req, res) => {
       expiresIn: "15m",
     });
 
+    // Template email dalam Bahasa Indonesia
+    const emailHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+      <div style="background: #2563eb; padding: 20px; text-align: center;">
+        <h1 style="color: white; margin: 0;">Selamat Datang di MAGIN</h1>
+        <p style="color: white; margin: 5px 0 0; font-size: 14px;">Sistem Magang Kominfo</p>
+      </div>
+      
+      <div style="padding: 30px;">
+        <p style="font-size: 16px;">Halo ${name},</p>
+        <p style="font-size: 16px;">Terima kasih telah mendaftar. Silakan gunakan kode OTP berikut untuk menyelesaikan verifikasi:</p>
+        
+        <div style="background: #f8f9fa; border-radius: 6px; padding: 15px; text-align: center; margin: 25px 0; font-size: 24px; letter-spacing: 3px; font-weight: bold; color: #2563eb;">
+          ${otp}
+        </div>
+        
+        <p style="font-size: 14px; color: #666;">Kode OTP ini berlaku selama 15 menit. Jangan berikan kode ini kepada siapapun.</p>
+        
+        <p style="font-size: 16px;">Jika Anda tidak merasa melakukan pendaftaran ini, abaikan email ini.</p>
+      </div>
+      
+      <div style="background: #f3f4f6; padding: 15px; text-align: center; font-size: 12px; color: #666;">
+        <p>© ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo. Hak cipta dilindungi.</p>
+      </div>
+    </div>
+    `;
+
+    // Versi teks biasa
+    const emailText = `
+    Selamat Datang di MAGIN - Sistem Magang Kominfo
+    
+    Halo ${name},
+    
+    Terima kasih telah mendaftar. Silakan gunakan kode OTP berikut untuk menyelesaikan verifikasi:
+    
+    Kode OTP: ${otp}
+    
+    Kode ini berlaku selama 15 menit. Jangan berikan kode ini kepada siapapun.
+    
+    Jika Anda tidak merasa melakukan pendaftaran ini, abaikan email ini.
+    
+    © ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo. Hak cipta dilindungi.
+    `;
+
     await sendMail(
       email,
-      "OTP Verification",
-      `Your OTP is ${otp}. Please use this to complete your registration.`
+      "🔐 Kode Verifikasi MAGIN - Harap Segera Diverifikasi", // Subjek email
+      emailText, // Versi teks biasa
+      emailHtml // Versi HTML
     );
 
-    res.status(200).json({ message: "OTP sent to your email", token });
+    res.status(200).json({ message: "OTP telah dikirim ke email Anda", token });
   } catch (error) {
-    console.error("Error saving user or sending OTP:", error);
-    res.status(500).json({ message: "Error saving to database" });
+    console.error("Error saat menyimpan user atau mengirim OTP:", error);
+    res.status(500).json({ message: "Terjadi kesalahan pada server" });
   }
 });
 
@@ -222,10 +293,57 @@ app.post("/api/forgot-password", async (req, res) => {
     await ResetToken.create({ userId: user._id, token: resetToken, expiresAt });
 
     const resetLink = `http://localhost:3000/reset-password/${resetToken}`;
+
+    // Modern email template in Bahasa Indonesia
+    const emailHtml = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+      <div style="background: linear-gradient(135deg, #2563eb, #1e40af); padding: 25px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Permintaan Reset Password</h1>
+        <p style="color: rgba(255, 255, 255, 0.9); margin: 5px 0 0; font-size: 14px;">MAGIN - Sistem Magang Kominfo</p>
+      </div>
+      
+      <div style="padding: 30px; background: #ffffff;">
+        <p style="font-size: 16px; line-height: 1.5;">Halo,</p>
+        <p style="font-size: 16px; line-height: 1.5;">Kami menerima permintaan reset password untuk akun Anda. Silakan klik tombol di bawah ini untuk melanjutkan:</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 16px;">Reset Password</a>
+        </div>
+        
+        <p style="font-size: 14px; color: #666; line-height: 1.5;">Atau salin dan tempel link berikut di browser Anda:<br>
+        <span style="word-break: break-all; color: #2563eb;">${resetLink}</span></p>
+        
+        <p style="font-size: 14px; color: #666; line-height: 1.5;">Link ini akan kadaluarsa dalam 15 menit. Jika Anda tidak meminta reset password, abaikan email ini.</p>
+      </div>
+      
+      <div style="background: #f8fafc; padding: 15px; text-align: center; font-size: 12px; color: #64748b;">
+        <p>© ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo. Hak cipta dilindungi.</p>
+      </div>
+    </div>
+    `;
+
+    // Plain text version
+    const emailText = `
+    Permintaan Reset Password - MAGIN
+    
+    Halo,
+    
+    Kami menerima permintaan reset password untuk akun Anda. 
+    Silakan gunakan link berikut untuk melanjutkan:
+    
+    ${resetLink}
+    
+    Link ini akan kadaluarsa dalam 15 menit.
+    Jika Anda tidak meminta reset password, abaikan email ini.
+    
+    © ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo
+    `;
+
     await sendMail(
       email,
-      "Reset Password",
-      `Klik link berikut untuk reset password Anda: ${resetLink}`
+      "🔑 Permintaan Reset Password - MAGIN",
+      emailText,
+      emailHtml
     );
 
     res.status(200).json({ message: "Link reset berhasil dikirim ke email" });
@@ -295,6 +413,22 @@ app.post("/api/logout", (req, res) => {
   }
 });
 
+//################################################################################################################################################################################################################################
+// (Backend) pendaftaran magang, Ambil Data peserta Magang, Update data pendaftar (edit atau setujui/tolak),Ambil Riwayat, ambil data pembimbing, Buat Akun Pembimbing, Kirim email Pemimbing
+//################################################################################################################################################################################################################################
+
+//################################################################################################################################################################################################################################
+// (Backend) hapus Akun pembimbing | Ubah Status Peserta Magang di dashboard admin | Ubah status aktif/tidak aktif akun pembimbing | ambil semua data pendaftar | Ubah pendaftaran dengan dokumen baru |
+//################################################################################################################################################################################################################################
+
+//################################################################################################################################################################################################################################
+// (Backend) edit data peserta (admin) | Upload Surat balasan | Mengupdate status pendaftaran (setujui/tolak/perbaiki) | pendaftaran baru? | Data Riwayat peserta Magang |  Update Masa Magang | upload laporan akhir |
+//################################################################################################################################################################################################################################
+
+//################################################################################################################################################################################################################################
+// (Backend) download file | tampilan Aktifitas
+//################################################################################################################################################################################################################################
+
 //Pendaftaran
 app.post(
   "/api/pendaftaran",
@@ -343,7 +477,7 @@ app.post(
   }
 );
 
-// Get all pendaftar
+// Ambil Data peserta Magang
 app.get("/api/pendaftaran", async (req, res) => {
   try {
     const data = await Pendaftaran.find();
@@ -425,8 +559,6 @@ app.post("/api/pembimbing", async (req, res) => {
         message: "Semua field wajib diisi",
       });
     }
-
-    // Validasi format email
     const emailRegex = /^\S+@\S+\.\S+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({
@@ -434,8 +566,6 @@ app.post("/api/pembimbing", async (req, res) => {
         message: "Format email tidak valid",
       });
     }
-
-    // Validasi kekuatan password
     if (password.length < 6) {
       return res.status(400).json({
         success: false,
@@ -443,7 +573,6 @@ app.post("/api/pembimbing", async (req, res) => {
       });
     }
 
-    // Cek email sudah terdaftar
     const existing = await Pembimbing.findOne({ email });
     if (existing) {
       return res.status(409).json({
@@ -452,7 +581,6 @@ app.post("/api/pembimbing", async (req, res) => {
       });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Buat pembimbing baru
@@ -465,7 +593,6 @@ app.post("/api/pembimbing", async (req, res) => {
 
     await pembimbing.save();
 
-    // Generate JWT token
     const token = jwt.sign(
       {
         id: pembimbing._id,
@@ -474,22 +601,35 @@ app.post("/api/pembimbing", async (req, res) => {
         divisi: pembimbing.divisi,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" } // Token berlaku 7 hari
+      { expiresIn: "7d" }
     );
 
     // Kirim email credentials (opsional)
     try {
       await sendMail(
         email,
-        "Akun Pembimbing Magang",
-        `Berikut adalah kredensial akun Anda:\n\nEmail: ${email}\nPassword: ${password}\n\nSilakan login di http://localhost:3000/login`
+        "Informasi Akun Pembimbing Magang",
+        `
+    <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+      <h2 style="color: #1E3A8A;">Selamat Datang di Sistem Magang Kominfo</h2>
+      <p>Berikut adalah kredensial akun Anda sebagai Pembimbing Magang:</p>
+      <ul>
+        <li><strong>Email:</strong> ${email}</li>
+        <li><strong>Password:</strong> ${password}</li>
+      </ul>
+      <p>Silakan login ke sistem melalui tautan berikut:</p>
+      <a href="http://localhost:3000/login" style="color: #2563EB; text-decoration: none;">http://localhost:3000/login</a>
+      <p>Jika Anda tidak merasa mendaftarkan akun ini, silakan abaikan email ini.</p>
+      <br />
+      <p>Hormat kami,<br /><strong>Tim Magang Kominfo Palembang</strong></p>
+    </div>
+    `
       );
     } catch (emailError) {
       console.error("Gagal mengirim email:", emailError);
       // Lanjutkan meskipun gagal kirim email
     }
 
-    // Response tanpa menyertakan password
     res.status(201).json({
       success: true,
       message: "Berhasil tambah pembimbing",
@@ -499,13 +639,11 @@ app.post("/api/pembimbing", async (req, res) => {
         email: pembimbing.email,
         divisi: pembimbing.divisi,
         status: pembimbing.status,
-        token, // Sertakan token dalam response
+        token,
       },
     });
   } catch (err) {
     console.error("Error:", err);
-
-    // Handle error spesifik MongoDB
     if (err.name === "MongoError" && err.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -532,7 +670,7 @@ app.delete("/api/pembimbing/:id", async (req, res) => {
   }
 });
 
-//Ubah Status admin
+//Ubah Status Peserta Magang di dashboard admin
 app.patch(
   "/api/pendaftaran/:id/status",
   upload.single("suratBalasan"),
@@ -565,7 +703,14 @@ app.patch(
           await sendMail(
             updated.email,
             "Status Pendaftaran Magang",
-            `Pendaftaran magang Anda telah disetujui. Silakan lihat surat balasan di aplikasi.`
+            `Halo,
+
+Selamat! Pendaftaran magang Anda telah disetujui ✅
+
+Silakan login ke aplikasi untuk melihat dan mengunduh surat balasan resmi Anda.
+
+Terima kasih,
+Magin | KOMINFO Kota Palembang`
           );
         } catch (emailError) {
           console.error("Gagal mengirim email notifikasi:", emailError);
@@ -719,69 +864,54 @@ app.post("/api/upload-pdf", upload.single("file"), async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
+    // Pastikan file tersimpan
+    const filePath = path.join(__dirname, "uploads", req.file.filename);
+    if (!fs.existsSync(filePath)) {
+      throw new Error("File gagal disimpan");
+    }
+
     res.json({
       message: "File uploaded successfully",
       fileName: req.file.filename,
     });
   } catch (error) {
     console.error("Error uploading file:", error);
+    // Hapus file jika gagal
+    if (req.file) {
+      fs.unlinkSync(path.join(__dirname, "uploads", req.file.filename));
+    }
     res.status(500).json({ message: "Error uploading file" });
   }
 });
 
 // Mengupdate status pendaftaran (setujui/tolak/perbaiki)
-app.patch("/api/pendaftaran/:id/status", async (req, res) => {
-  try {
-    const { status, komentar, suratBalasan } = req.body;
+app.patch(
+  "/api/pendaftaran/:id/status",
+  upload.single("suratBalasan"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, komentar } = req.body;
+      const suratBalasan = req.file?.filename; // Pastikan ini terisi
 
-    // Validasi
-    if (!status) {
-      return res.status(400).json({ message: "Status is required" });
-    }
+      const updateData = {
+        status,
+        updatedAt: new Date(),
+        ...(komentar && { komentar }),
+        ...(suratBalasan && { suratBalasan }), // Pastikan ini tersimpan
+      };
 
-    // Validasi khusus untuk status disetujui
-    if (status === "disetujui" && !suratBalasan) {
-      return res.status(400).json({
-        message: "Surat balasan wajib diisi untuk status disetujui",
+      const updated = await Pendaftaran.findByIdAndUpdate(id, updateData, {
+        new: true,
       });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating status:", error);
+      res.status(500).json({ error: "Gagal memperbarui status" });
     }
-
-    const updateData = {
-      status,
-      updatedAt: new Date(),
-      ...(komentar && { komentar }),
-      ...(suratBalasan && { suratBalasan }),
-    };
-
-    const updated = await Pendaftaran.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    );
-
-    if (!updated) {
-      return res.status(404).json({ message: "Data tidak ditemukan" });
-    }
-
-    // Kirim email notifikasi jika status disetujui
-    if (status === "disetujui") {
-      try {
-        await sendMail(
-          updated.email,
-          "Status Pendaftaran Magang",
-          `Pendaftaran magang Anda telah disetujui. Silakan login untuk melihat surat balasan.`
-        );
-      } catch (emailError) {
-        console.error("Gagal mengirim email:", emailError);
-      }
-    }
-
-    res.json(updated);
-  } catch (error) {
-    console.error("Error updating status:", error);
-    res.status(500).json({ error: "Gagal memperbarui status" });
   }
-});
+);
 
 // Endpoint untuk pendaftaran baru
 app.post(
@@ -833,8 +963,18 @@ app.post(
       // Kirim email konfirmasi
       await sendMail(
         email,
-        "Pendaftaran Magang Diterima",
-        `Terima kasih telah mendaftar magang. Pendaftaran Anda sedang diproses.`
+        "Konfirmasi Pendaftaran Magang",
+        `
+  Halo ${email},
+
+  Terima kasih telah melakukan pendaftaran program magang di Kominfo Kota Palembang.
+  Saat ini, pendaftaran Anda sedang kami proses.
+
+  Anda akan menerima pemberitahuan selanjutnya setelah proses verifikasi selesai.
+
+  Hormat kami,  
+  Magin | Sistem magang Kominfo Kota Palembang
+  `
       );
 
       res.status(201).json({
@@ -865,107 +1005,97 @@ app.post(
   }
 );
 
-app.put("/api/user/:id/edit-profile", async (req, res) => {
-  try {
-    // Verify token first
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+// app.put("/api/user/:id/edit-profile", async (req, res) => {
+//   try {
+//     // Verify token first
+//     const token = req.headers.authorization?.split(" ")[1];
+//     if (!token) {
+//       return res.status(401).json({ message: "Unauthorized" });
+//     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Verify the user is editing their own profile
-    if (decoded.id !== req.params.id) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
+//     // Verify the user is editing their own profile
+//     if (decoded.id !== req.params.id) {
+//       return res.status(403).json({ message: "Forbidden" });
+//     }
 
-    const { id } = req.params;
-    const { name, phone, birthDate, gender, address, profilePicture } =
-      req.body;
+//     const { id } = req.params;
+//     const { name, phone, birthDate, gender, address, profilePicture } =
+//       req.body;
 
-    // Validate required fields
-    if (!name) {
-      return res.status(400).json({ message: "Nama lengkap wajib diisi" });
-    }
+//     // Validate required fields
+//     if (!name) {
+//       return res.status(400).json({ message: "Nama lengkap wajib diisi" });
+//     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      id,
-      {
-        name,
-        phone,
-        birthDate,
-        gender,
-        address,
-        profilePicture,
-      },
-      { new: true, runValidators: true }
-    );
+//     const updatedUser = await User.findByIdAndUpdate(
+//       id,
+//       {
+//         name,
+//         phone,
+//         birthDate,
+//         gender,
+//         address,
+//         profilePicture,
+//       },
+//       { new: true, runValidators: true }
+//     );
 
-    if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
+//     if (!updatedUser) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
 
-    // Remove sensitive data before sending response
-    const userResponse = {
-      _id: updatedUser._id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      phone: updatedUser.phone,
-      birthDate: updatedUser.birthDate,
-      gender: updatedUser.gender,
-      address: updatedUser.address,
-      profilePicture: updatedUser.profilePicture,
-      role: updatedUser.role,
-    };
+//     // Remove sensitive data before sending response
+//     const userResponse = {
+//       _id: updatedUser._id,
+//       name: updatedUser.name,
+//       email: updatedUser.email,
+//       phone: updatedUser.phone,
+//       birthDate: updatedUser.birthDate,
+//       gender: updatedUser.gender,
+//       address: updatedUser.address,
+//       profilePicture: updatedUser.profilePicture,
+//       role: updatedUser.role,
+//     };
 
-    res.status(200).json({
-      message: "Profile updated successfully",
-      user: userResponse,
-    });
-  } catch (error) {
-    console.error("Error updating profile:", error);
+//     res.status(200).json({
+//       message: "Profile updated successfully",
+//       user: userResponse,
+//     });
+//   } catch (error) {
+//     console.error("Error updating profile:", error);
 
-    if (error.name === "JsonWebTokenError") {
-      return res.status(401).json({ message: "Invalid token" });
-    }
+//     if (error.name === "JsonWebTokenError") {
+//       return res.status(401).json({ message: "Invalid token" });
+//     }
 
-    if (error.name === "ValidationError") {
-      const messages = Object.values(error.errors).map((val) => val.message);
-      return res.status(400).json({
-        message: "Validation error",
-        errors: messages,
-      });
-    }
+//     if (error.name === "ValidationError") {
+//       const messages = Object.values(error.errors).map((val) => val.message);
+//       return res.status(400).json({
+//         message: "Validation error",
+//         errors: messages,
+//       });
+//     }
 
-    res.status(500).json({
-      message: "Failed to update profile",
-      error: error.message,
-    });
-  }
-});
+//     res.status(500).json({
+//       message: "Failed to update profile",
+//       error: error.message,
+//     });
+//   }
+// });
 
-// Get user's internship history
+// Data Riwayat peserta Magang
 app.get("/api/riwayat", async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    if (!token) return res.status(401).json({ message: "Unauthorized" });
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (err) {
-      if (err.name === "TokenExpiredError") {
-        return res.status(401).json({ message: "Token kedaluwarsa" });
-      }
-      return res.status(403).json({ message: "Token tidak valid" });
-    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const riwayat = await Pendaftaran.find({ email: decoded.email }).sort({
-      createdAt: -1,
-    });
+    const riwayat = await Pendaftaran.find({ email: decoded.email })
+      .populate("pembimbing", "nama divisi") // Populate data pembimbing
+      .sort({ createdAt: -1 });
 
     res.json(riwayat);
   } catch (error) {
@@ -974,7 +1104,7 @@ app.get("/api/riwayat", async (req, res) => {
   }
 });
 
-// Update internship period
+// Update Masa Magang
 app.put("/api/riwayat/:id", async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -1013,10 +1143,10 @@ app.put("/api/riwayat/:id", async (req, res) => {
   }
 });
 
-// Upload final report
+// Endpoint untuk upload laporan akhir
 app.post(
-  "/api/riwayat/:id/laporan",
-  upload.single("laporanAkhir"),
+  "/api/pendaftaran/:pendaftaranId/laporan",
+  uploadLaporan.single("laporan"),
   async (req, res) => {
     try {
       const token = req.headers.authorization?.split(" ")[1];
@@ -1025,30 +1155,26 @@ app.post(
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (!decoded) {
+        return res.status(401).json({ message: "Token tidak valid" });
+      }
 
       if (!req.file) {
         return res.status(400).json({ message: "File tidak ditemukan" });
       }
 
-      const pendaftaran = await Pendaftaran.findOne({
-        _id: req.params.id,
-        email: decoded.email,
-        status: "disetujui", // Only allow upload if approved
-      });
-
+      const pendaftaran = await Pendaftaran.findById(req.params.pendaftaranId);
       if (!pendaftaran) {
-        // Delete the uploaded file if registration not found
+        // Hapus file yang sudah diupload jika pendaftaran tidak ditemukan
         fs.unlinkSync(req.file.path);
-        return res
-          .status(404)
-          .json({ message: "Data tidak ditemukan atau tidak disetujui" });
+        return res.status(404).json({ message: "Data tidak ditemukan" });
       }
 
-      // Delete old report if exists
+      // Hapus laporan lama jika ada
       if (pendaftaran.laporanAkhir) {
         const oldPath = path.join(
           __dirname,
-          "uploads",
+          "uploads/laporan",
           pendaftaran.laporanAkhir
         );
         if (fs.existsSync(oldPath)) {
@@ -1057,11 +1183,19 @@ app.post(
       }
 
       pendaftaran.laporanAkhir = req.file.filename;
+      pendaftaran.laporanUploadDate = new Date();
       await pendaftaran.save();
 
-      res.json({ message: "Laporan akhir berhasil diunggah" });
+      res.json({
+        message: "Laporan akhir berhasil diunggah",
+        filename: req.file.filename,
+      });
     } catch (error) {
       console.error("Error uploading laporan:", error);
+      // Hapus file jika ada error
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
       res.status(500).json({ message: "Gagal mengunggah laporan" });
     }
   }
@@ -1101,7 +1235,7 @@ app.get("/api/statistik", async (req, res) => {
   }
 });
 
-// Get recent activities
+// Tampilakan Aktifitas
 app.get("/api/aktivitas-terbaru", async (req, res) => {
   try {
     // Get recent registration status changes
@@ -1135,6 +1269,16 @@ app.get("/api/aktivitas-terbaru", async (req, res) => {
   }
 });
 
+//################################################################################################################################################################################################################################
+// (Backend) Email Pembimbing | Login Pembimbing | Update Pendaftar dgn pembimbing |  pembimbing jumlahMahasiswa | Ambil Pendaftar lewat email | endpoint untuk assign pembimbing | Kurangi Jumlah mahasiswa | Upload sertifikat
+//################################################################################################################################################################################################################################
+//################################################################################################################################################################################################################################
+// (Backend) Update Pendafaran dgn sertifikat | Download? | mendapatkan mahasiswa bimbingan berdasarkan ID pembimbing | Admin logbook endpoint | Get pembimbing data by token |  Endpoint Pembimbing dan peserta lo
+//################################################################################################################################################################################################################################
+//################################################################################################################################################################################################################################
+// (Backend) upload laporan akhir |  endpoint for report verification |
+//################################################################################################################################################################################################################################
+
 // 📧 Endpoint untuk mengirim email credentials
 app.post("/api/send-credentials", async (req, res) => {
   const { email, password, role } = req.body;
@@ -1142,8 +1286,26 @@ app.post("/api/send-credentials", async (req, res) => {
   try {
     await sendMail(
       email,
-      "Akun Pembimbing Magang",
-      `Berikut adalah kredensial akun Anda:\n\nEmail: ${email}\nPassword: ${password}\nRole: ${role}\n\nSilakan login di http://localhost:3000/login`
+      "Informasi Akun Pembimbing Magang",
+      `
+  Halo ${email},
+
+  Selamat! Anda telah ditambahkan sebagai pembimbing magang pada sistem magang Kominfo Kota Palembang.
+
+  Berikut adalah informasi akun Anda:
+
+  📧 Email   : ${email}  
+  🔑 Password: ${password}  
+  🧑‍💼 Role   : ${role}
+
+  Silakan login ke sistem melalui tautan berikut:  
+  👉 http://localhost:3000/login
+
+  Demi keamanan, mohon segera ganti password Anda setelah login pertama.
+
+  Hormat kami,  
+  Tim Magang Kominfo Kota Palembang
+  `
     );
 
     res.status(200).json({ message: "Email berhasil dikirim" });
@@ -1200,7 +1362,7 @@ app.post("/api/pembimbing/login", async (req, res) => {
   }
 });
 
-// API endpoint to update pendaftaran with pembimbing
+// Update Pendaftar dgn pembimbing
 app.patch("/api/pendaftaran/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -1222,7 +1384,7 @@ app.patch("/api/pendaftaran/:id", async (req, res) => {
   }
 });
 
-// API endpoint to increment pembimbing's jumlahMahasiswa
+// pembimbing jumlahMahasiswa
 app.patch("/api/pembimbing/:id/tambah-mahasiswa", async (req, res) => {
   try {
     const pembimbing = await Pembimbing.findById(req.params.id);
@@ -1243,7 +1405,7 @@ app.patch("/api/pembimbing/:id/tambah-mahasiswa", async (req, res) => {
   }
 });
 
-// Get pendaftaran by email
+// Ambil Pendaftar lewat email
 app.get("/api/pendaftaran/email/:email", async (req, res) => {
   try {
     const data = await Pendaftaran.findOne({ email: req.params.email });
@@ -1273,7 +1435,7 @@ app.patch("/api/pendaftaran/:id/assign-pembimbing", async (req, res) => {
   }
 });
 
-// API endpoint to decrement pembimbing's jumlahMahasiswa
+// Kurangi Jumlah mahasiswa
 app.patch("/api/pembimbing/:id/kurangi-mahasiswa", async (req, res) => {
   try {
     const pembimbing = await Pembimbing.findById(req.params.id);
@@ -1298,7 +1460,7 @@ app.patch("/api/pembimbing/:id/kurangi-mahasiswa", async (req, res) => {
   }
 });
 
-// Add this endpoint for certificate upload
+// Upload sertifikat
 app.post("/api/upload-certificate", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
@@ -1315,7 +1477,7 @@ app.post("/api/upload-certificate", upload.single("file"), async (req, res) => {
   }
 });
 
-// Add this endpoint to update pendaftaran with certificate
+// Update Pendafaran dgn sertifikat
 app.patch("/api/pendaftaran/:id/certificate", async (req, res) => {
   try {
     const { id } = req.params;
@@ -1399,6 +1561,7 @@ app.patch("/api/pendaftaran/:id/certificate", async (req, res) => {
   }
 });
 
+//downlaod?
 app.get("/api/download/:filename", (req, res) => {
   const filePath = path.join(__dirname, "uploads", req.params.filename);
 
@@ -1409,21 +1572,43 @@ app.get("/api/download/:filename", (req, res) => {
   }
 });
 
-// Endpoint untuk menampilkan mahasiswa yang sudah dibimbing
+// mendapatkan mahasiswa bimbingan berdasarkan ID pembimbing
 app.get("/api/pembimbing/:id/mahasiswa", async (req, res) => {
   try {
     const pembimbingId = req.params.id;
 
-    // Find all Pendaftaran records that have this pembimbing assigned
+    // 1. Verifikasi pembimbing
+    const pembimbing = await Pembimbing.findById(pembimbingId);
+    if (!pembimbing) {
+      return res.status(404).json({ message: "Pembimbing tidak ditemukan" });
+    }
+
+    // 2. Dapatkan mahasiswa bimbingan
     const mahasiswa = await Pendaftaran.find({
       pembimbing: pembimbingId,
-      status: "disetujui", // Only include approved students
-    }).select("nama institusi prodi status mulai selesai");
+      status: "disetujui",
+    }).select(
+      "nama namaLengkap email telepon institusi universitas prodi status mulai selesai divisi"
+    );
 
-    res.status(200).json(mahasiswa);
+    // 3. Format response
+    res.status(200).json(
+      mahasiswa.map((m) => ({
+        _id: m._id,
+        nama: m.nama || m.namaLengkap,
+        email: m.email,
+        telepon: m.telepon,
+        institusi: m.institusi || m.universitas,
+        prodi: m.prodi,
+        status: m.status,
+        mulai: m.mulai,
+        selesai: m.selesai,
+        divisi: m.divisi,
+      }))
+    );
   } catch (error) {
-    console.error("Error fetching mahasiswa:", error);
-    res.status(500).json({ message: "Gagal mengambil data mahasiswa" });
+    console.error("Error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -1465,5 +1650,305 @@ app.get("/api/logbook/pdf/:userId", async (req, res) => {
   } catch (error) {
     console.error("Error generating PDF:", error);
     res.status(500).json({ error: "Gagal menghasilkan PDF" });
+  }
+});
+
+// Admin logbook endpoint
+app.get("/api/logbook/admin", async (req, res) => {
+  try {
+    // Fetch all logbooks with populated user and pendaftaran data
+    const logbooks = await Logbook.find()
+      .populate({
+        path: "user",
+        select: "name email", // Only include name and email from user
+      })
+      .populate({
+        path: "pendaftaran",
+        select: "namaLengkap email universitas", // Only include these fields from pendaftaran
+      })
+      .sort({ createdAt: -1 }); // Sort by newest first
+
+    // Format the response data
+    const formattedLogbooks = logbooks.map((logbook) => ({
+      _id: logbook._id,
+      title: logbook.title,
+      content: logbook.content,
+      report: logbook.report,
+      comment: logbook.comment,
+      createdAt: logbook.createdAt,
+      updatedAt: logbook.updatedAt,
+      // Combine user and pendaftaran data
+      user: logbook.user
+        ? {
+            _id: logbook.user._id,
+            name: logbook.user.name,
+            email: logbook.user.email,
+          }
+        : null,
+      pendaftaran: logbook.pendaftaran
+        ? {
+            _id: logbook.pendaftaran._id,
+            namaLengkap: logbook.pendaftaran.namaLengkap,
+            email: logbook.pendaftaran.email,
+            universitas: logbook.pendaftaran.universitas,
+          }
+        : null,
+    }));
+
+    res.status(200).json(formattedLogbooks);
+  } catch (error) {
+    console.error("Error fetching admin logbooks:", error);
+    res.status(500).json({ message: "Gagal memuat data logbook" });
+  }
+});
+
+// // Add comment to logbook
+// app.patch("/api/logbook/:id/comment", async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { comment } = req.body;
+
+//     const updatedLogbook = await Logbook.findByIdAndUpdate(
+//       id,
+//       { comment },
+//       { new: true }
+//     ).populate("pendaftaran", "namaLengkap email");
+
+//     if (!updatedLogbook) {
+//       return res.status(404).json({ message: "Logbook tidak ditemukan" });
+//     }
+
+//     res.json(updatedLogbook);
+//   } catch (error) {
+//     console.error("Error adding comment:", error);
+//     res.status(500).json({ message: "Gagal menambahkan komentar" });
+//   }
+// });
+
+// Get pembimbing data by token
+app.get("/api/pembimbing/me", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(401).json({ message: "Unauthorized" });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const pembimbing = await Pembimbing.findById(decoded.id).select(
+      "-password"
+    );
+
+    if (!pembimbing) {
+      return res.status(404).json({ message: "Pembimbing tidak ditemukan" });
+    }
+
+    res.json(pembimbing);
+  } catch (error) {
+    console.error("Error fetching pembimbing data:", error);
+    res.status(500).json({ message: "Gagal mengambil data pembimbing" });
+  }
+});
+
+// Endpoint Pembimbing dan peserta lo
+app.get("/api/pembimbing/:pembimbingId/logbooks", async (req, res) => {
+  try {
+    const { pembimbingId } = req.params;
+    const user = await User.findById(pembimbingId).lean();
+
+    if (!user) {
+      return res.status(404).json({ message: "Pembimbing tidak ditemukan" });
+    }
+
+    // 1. Dapatkan semua mahasiswa yang dibimbing oleh pembimbing ini (baik by ID atau nama)
+    const mahasiswa = await Pendaftaran.find({
+      $or: [{ pembimbingId: pembimbingId }, { "pembimbing.nama": user.nama }],
+    }).lean();
+
+    if (!mahasiswa || mahasiswa.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Tidak ada mahasiswa yang dibimbing" });
+    }
+
+    // 2. Untuk setiap mahasiswa, dapatkan data riwayat dan logbook
+    const result = await Promise.all(
+      mahasiswa.map(async (mhs) => {
+        const riwayat = await Riwayat.findOne({ email: mhs.email }).lean();
+
+        if (!riwayat) {
+          return null;
+        }
+
+        const logbooks = await Logbook.find({ userId: riwayat._id })
+          .sort({ tanggal: -1 })
+          .lean();
+
+        return {
+          mahasiswa: {
+            _id: mhs._id,
+            nama: mhs.nama,
+            email: mhs.email,
+            institusi: mhs.institusi,
+            divisi: mhs.divisi,
+          },
+          pembimbing: {
+            id: pembimbingId,
+            nama: user.nama,
+            divisi: user.divisi,
+          },
+          periode: {
+            mulai: riwayat.mulai,
+            selesai: riwayat.selesai,
+          },
+          logbooks: logbooks.map((log) => ({
+            id: log._id,
+            kegiatan: log.kegiatan,
+            tanggal: log.tanggal,
+            status: log.status || "pending",
+            deskripsi: log.deskripsi,
+            createdAt: log.createdAt,
+          })),
+        };
+      })
+    );
+
+    // Filter out null values (mahasiswa tanpa riwayat)
+    const filteredResult = result.filter((item) => item !== null);
+
+    res.json(filteredResult);
+  } catch (error) {
+    console.error("Error fetching logbooks:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Endpoint untuk upload laporan akhir
+app.post(
+  "/api/pendaftaran/:pendaftaranId/laporan",
+  uploadLaporan.single("laporan"),
+  async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(" ")[1];
+      if (!token) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (!decoded) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      // Validate file type
+      const allowedTypes = [".pdf", ".doc", ".docx"];
+      const fileExt = path.extname(req.file.originalname).toLowerCase();
+      if (!allowedTypes.includes(fileExt)) {
+        fs.unlinkSync(req.file.path); // Delete the uploaded file
+        return res.status(400).json({
+          message: "Invalid file type. Only PDF, DOC, and DOCX are allowed.",
+        });
+      }
+
+      const pendaftaran = await Pendaftaran.findById(req.params.pendaftaranId);
+      if (!pendaftaran) {
+        fs.unlinkSync(req.file.path);
+        return res.status(404).json({ message: "Registration data not found" });
+      }
+
+      // Verify the user owns this registration
+      if (pendaftaran.email !== decoded.email) {
+        fs.unlinkSync(req.file.path);
+        return res.status(403).json({
+          message: "You can only upload reports for your own registration",
+        });
+      }
+
+      // Verify status is approved
+      if (pendaftaran.status !== "disetujui") {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({
+          message: "Report can only be uploaded for approved registrations",
+          currentStatus: pendaftaran.status,
+        });
+      }
+
+      // Delete old report if exists
+      if (pendaftaran.laporanAkhir) {
+        const oldPath = path.join(
+          __dirname,
+          "uploads/laporan",
+          pendaftaran.laporanAkhir
+        );
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+
+      pendaftaran.laporanAkhir = req.file.filename;
+      pendaftaran.laporanUploadDate = new Date();
+      pendaftaran.laporanVerified = false; // Reset verification status
+      await pendaftaran.save();
+
+      res.json({
+        message: "Final report uploaded successfully",
+        filename: req.file.filename,
+        uploadDate: pendaftaran.laporanUploadDate,
+      });
+    } catch (error) {
+      console.error("Error uploading report:", error);
+      // Delete file if there was an error
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
+
+      if (error.name === "JsonWebTokenError") {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      res.status(500).json({
+        message: "Failed to upload report",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// Add this endpoint for report verification
+app.patch("/api/pendaftaran/:id/verify-laporan", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded || decoded.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    const pendaftaran = await Pendaftaran.findById(req.params.id);
+    if (!pendaftaran) {
+      return res.status(404).json({ message: "Registration not found" });
+    }
+
+    if (!pendaftaran.laporanAkhir) {
+      return res.status(400).json({ message: "No report to verify" });
+    }
+
+    pendaftaran.laporanVerified = true;
+    pendaftaran.laporanVerificationDate = new Date();
+    await pendaftaran.save();
+
+    res.json({
+      message: "Report verified successfully",
+      verificationDate: pendaftaran.laporanVerificationDate,
+    });
+  } catch (error) {
+    console.error("Error verifying report:", error);
+    res.status(500).json({
+      message: "Failed to verify report",
+      error: error.message,
+    });
   }
 });

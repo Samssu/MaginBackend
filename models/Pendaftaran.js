@@ -32,13 +32,31 @@ const PendaftaranSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    pembimbing: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Pembimbing",
+    },
+    laporanAkhir: String,
+    laporanUploadDate: Date,
+    laporanVerified: {
+      type: Boolean,
+      default: false,
+    },
 
-    // Perbaikan enum status untuk sinkronisasi dengan frontend
+    // Status sinkron dengan frontend
     status: {
       type: String,
       enum: ["pending", "disetujui", "ditolak", "perbaiki"],
       default: "pending",
     },
+
+    // Relasi ke logbook
+    logbooks: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Logbook",
+      },
+    ],
 
     // Tambahan field untuk tracking
     tanggalDisetujui: Date,
