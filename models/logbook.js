@@ -10,6 +10,12 @@ const logbookSchema = new mongoose.Schema(
     pendaftaran: { type: mongoose.Schema.Types.ObjectId, ref: "Pendaftaran" }, // Tambahkan ini
     report: String,
     comment: String,
+    report: {
+      type: String, // path to uploaded file
+    },
+    comment: {
+      type: String, // komentar dari pembimbing
+    },
     createdAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
