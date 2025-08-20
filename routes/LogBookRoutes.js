@@ -7,7 +7,9 @@ const fs = require("fs");
 const jwt = require("jsonwebtoken");
 
 const User = require("../models/User");
+const Pendaftaran = require("../models/Pendaftaran");
 const Logbook = require("../models/logbook");
+const Pembimbing = require("../models/pembimbing");
 
 // Middleware otentikasi token
 const authenticate = async (req, res, next) => {
@@ -40,6 +42,35 @@ const authenticate = async (req, res, next) => {
   }
 };
 
+// Middleware untuk pembimbing
+const authenticatePembimbing = async (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ message: "Token diperlukan" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Check if user is pembimbing
+    if (decoded.role !== "pembimbing") {
+      return res.status(403).json({ message: "Akses ditolak" });
+    }
+
+    const pembimbing = await Pembimbing.findById(decoded.id);
+    if (!pembimbing) {
+      return res.status(401).json({ message: "Pembimbing tidak ditemukan" });
+    }
+
+    req.pembimbing = pembimbing;
+    next();
+  } catch (err) {
+    console.error("Token verification failed:", err);
+    return res.status(401).json({ message: "Token tidak valid" });
+  }
+};
+
 // Konfigurasi multer untuk PDF
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -57,15 +88,27 @@ const upload = multer({ storage });
 // 📥 Create logbook
 router.post("/", authenticate, upload.single("report"), async (req, res) => {
   try {
+    // Cari data pendaftaran user
+    const pendaftaran = await Pendaftaran.findOne({ email: req.user.email });
+
     const newLogbook = new Logbook({
       title: req.body.title,
       content: req.body.content,
       user: req.user._id,
+      pendaftaran: pendaftaran ? pendaftaran._id : null,
       report: req.file ? `/uploads/logbooks/${req.file.filename}` : "",
+      tanggal: req.body.tanggal || new Date(),
     });
 
     await newLogbook.save();
-    res.status(201).json({ message: "Logbook berhasil disimpan" });
+
+    // Populate data untuk response
+    await newLogbook.populate("user", "name email");
+
+    res.status(201).json({
+      message: "Logbook berhasil disimpan",
+      logbook: newLogbook,
+    });
   } catch (err) {
     console.error("Gagal menyimpan logbook:", err);
     res.status(500).json({ message: "Gagal menyimpan logbook" });
@@ -75,13 +118,86 @@ router.post("/", authenticate, upload.single("report"), async (req, res) => {
 // 📤 Get logbooks milik user
 router.get("/", authenticate, async (req, res) => {
   try {
-    const logs = await Logbook.find({ user: req.user._id }).populate(
-      "user",
-      "name"
-    );
+    const logs = await Logbook.find({ user: req.user._id })
+      .populate("user", "name email")
+      .sort({ createdAt: -1 });
     res.json(logs);
   } catch (err) {
     res.status(500).json({ message: "Gagal mengambil logbook" });
+  }
+});
+
+// 📋 Get logbooks by mahasiswa ID (for pembimbing)
+router.get(
+  "/mahasiswa/:mahasiswaId",
+  authenticatePembimbing,
+  async (req, res) => {
+    try {
+      const { mahasiswaId } = req.params;
+
+      // Verifikasi bahwa mahasiswa ini adalah bimbingan pembimbing
+      const pendaftaran = await Pendaftaran.findById(mahasiswaId).populate(
+        "pembimbing"
+      );
+
+      if (
+        !pendaftaran ||
+        pendaftaran.pembimbing._id.toString() !== req.pembimbing._id.toString()
+      ) {
+        return res.status(403).json({ message: "Akses ditolak" });
+      }
+
+      const logbooks = await Logbook.find({ pendaftaran: mahasiswaId })
+        .populate("user", "name email")
+        .sort({ tanggal: -1, createdAt: -1 });
+
+      res.status(200).json(logbooks);
+    } catch (error) {
+      console.error("Error fetching mahasiswa logbooks:", error);
+      res.status(500).json({ message: "Gagal memuat logbook mahasiswa" });
+    }
+  }
+);
+
+// 💬 Add comment to logbook
+router.patch("/:id/comment", authenticatePembimbing, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+
+    const logbook = await Logbook.findById(id)
+      .populate("pendaftaran")
+      .populate("user", "name email");
+
+    if (!logbook) {
+      return res.status(404).json({ message: "Logbook tidak ditemukan" });
+    }
+
+    // Verifikasi bahwa mahasiswa ini adalah bimbingan pembimbing
+    if (
+      logbook.pendaftaran.pembimbing.toString() !==
+      req.pembimbing._id.toString()
+    ) {
+      return res.status(403).json({ message: "Akses ditolak" });
+    }
+
+    logbook.comment = comment;
+    logbook.commentedAt = new Date();
+    logbook.commentedBy = req.pembimbing._id;
+    logbook.status = comment ? "dikomentari" : "menunggu";
+
+    await logbook.save();
+
+    // Populate data pembimbing untuk response
+    await logbook.populate("commentedBy", "nama");
+
+    res.json({
+      message: "Komentar berhasil ditambahkan",
+      logbook: logbook,
+    });
+  } catch (error) {
+    console.error("Error adding comment:", error);
+    res.status(500).json({ message: "Gagal menambahkan komentar" });
   }
 });
 
@@ -106,6 +222,29 @@ router.delete("/:id", authenticate, async (req, res) => {
   } catch (err) {
     console.error("Gagal menghapus logbook:", err);
     res.status(500).json({ message: "Gagal menghapus logbook" });
+  }
+});
+
+// 📊 Get all logbooks (for admin)
+router.get("/admin/all", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(401).json({ message: "Token diperlukan" });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role !== "admin") {
+      return res.status(403).json({ message: "Akses ditolak" });
+    }
+
+    const logbooks = await Logbook.find()
+      .populate("user", "name email")
+      .populate("pendaftaran", "namaLengkap universitas")
+      .populate("commentedBy", "nama")
+      .sort({ createdAt: -1 });
+
+    res.json(logbooks);
+  } catch (err) {
+    res.status(500).json({ message: "Gagal mengambil logbook" });
   }
 });
 

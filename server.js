@@ -140,47 +140,47 @@ app.post("/api/register", async (req, res) => {
 
     // Template email dalam Bahasa Indonesia
     const emailHtml = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-      <div style="background: #2563eb; padding: 20px; text-align: center;">
-        <h1 style="color: white; margin: 0;">Selamat Datang di MAGIN</h1>
-        <p style="color: white; margin: 5px 0 0; font-size: 14px;">Sistem Magang Kominfo</p>
-      </div>
-      
-      <div style="padding: 30px;">
-        <p style="font-size: 16px;">Halo ${name},</p>
-        <p style="font-size: 16px;">Terima kasih telah mendaftar. Silakan gunakan kode OTP berikut untuk menyelesaikan verifikasi:</p>
-        
-        <div style="background: #f8f9fa; border-radius: 6px; padding: 15px; text-align: center; margin: 25px 0; font-size: 24px; letter-spacing: 3px; font-weight: bold; color: #2563eb;">
-          ${otp}
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+        <div style="background: #2563eb; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Selamat Datang di MAGIN</h1>
+          <p style="color: white; margin: 5px 0 0; font-size: 14px;">Sistem Magang Kominfo</p>
         </div>
         
-        <p style="font-size: 14px; color: #666;">Kode OTP ini berlaku selama 15 menit. Jangan berikan kode ini kepada siapapun.</p>
+        <div style="padding: 30px;">
+          <p style="font-size: 16px;">Halo ${name},</p>
+          <p style="font-size: 16px;">Terima kasih telah mendaftar. Silakan gunakan kode OTP berikut untuk menyelesaikan verifikasi:</p>
+          
+          <div style="background: #f8f9fa; border-radius: 6px; padding: 15px; text-align: center; margin: 25px 0; font-size: 24px; letter-spacing: 3px; font-weight: bold; color: #2563eb;">
+            ${otp}
+          </div>
+          
+          <p style="font-size: 14px; color: #666;">Kode OTP ini berlaku selama 15 menit. Jangan berikan kode ini kepada siapapun.</p>
+          
+          <p style="font-size: 16px;">Jika Anda tidak merasa melakukan pendaftaran ini, abaikan email ini.</p>
+        </div>
         
-        <p style="font-size: 16px;">Jika Anda tidak merasa melakukan pendaftaran ini, abaikan email ini.</p>
+        <div style="background: #f3f4f6; padding: 15px; text-align: center; font-size: 12px; color: #666;">
+          <p>© ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo. Hak cipta dilindungi.</p>
+        </div>
       </div>
-      
-      <div style="background: #f3f4f6; padding: 15px; text-align: center; font-size: 12px; color: #666;">
-        <p>© ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo. Hak cipta dilindungi.</p>
-      </div>
-    </div>
-    `;
+      `;
 
     // Versi teks biasa
     const emailText = `
-    Selamat Datang di MAGIN - Sistem Magang Kominfo
-    
-    Halo ${name},
-    
-    Terima kasih telah mendaftar. Silakan gunakan kode OTP berikut untuk menyelesaikan verifikasi:
-    
-    Kode OTP: ${otp}
-    
-    Kode ini berlaku selama 15 menit. Jangan berikan kode ini kepada siapapun.
-    
-    Jika Anda tidak merasa melakukan pendaftaran ini, abaikan email ini.
-    
-    © ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo. Hak cipta dilindungi.
-    `;
+      Selamat Datang di MAGIN - Sistem Magang Kominfo
+      
+      Halo ${name},
+      
+      Terima kasih telah mendaftar. Silakan gunakan kode OTP berikut untuk menyelesaikan verifikasi:
+      
+      Kode OTP: ${otp}
+      
+      Kode ini berlaku selama 15 menit. Jangan berikan kode ini kepada siapapun.
+      
+      Jika Anda tidak merasa melakukan pendaftaran ini, abaikan email ini.
+      
+      © ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo. Hak cipta dilindungi.
+      `;
 
     await sendMail(
       email,
@@ -296,48 +296,48 @@ app.post("/api/forgot-password", async (req, res) => {
 
     // Modern email template in Bahasa Indonesia
     const emailHtml = `
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-      <div style="background: linear-gradient(135deg, #2563eb, #1e40af); padding: 25px; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">Permintaan Reset Password</h1>
-        <p style="color: rgba(255, 255, 255, 0.9); margin: 5px 0 0; font-size: 14px;">MAGIN - Sistem Magang Kominfo</p>
-      </div>
-      
-      <div style="padding: 30px; background: #ffffff;">
-        <p style="font-size: 16px; line-height: 1.5;">Halo,</p>
-        <p style="font-size: 16px; line-height: 1.5;">Kami menerima permintaan reset password untuk akun Anda. Silakan klik tombol di bawah ini untuk melanjutkan:</p>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetLink}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 16px;">Reset Password</a>
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <div style="background: linear-gradient(135deg, #2563eb, #1e40af); padding: 25px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Permintaan Reset Password</h1>
+          <p style="color: rgba(255, 255, 255, 0.9); margin: 5px 0 0; font-size: 14px;">MAGIN - Sistem Magang Kominfo</p>
         </div>
         
-        <p style="font-size: 14px; color: #666; line-height: 1.5;">Atau salin dan tempel link berikut di browser Anda:<br>
-        <span style="word-break: break-all; color: #2563eb;">${resetLink}</span></p>
+        <div style="padding: 30px; background: #ffffff;">
+          <p style="font-size: 16px; line-height: 1.5;">Halo,</p>
+          <p style="font-size: 16px; line-height: 1.5;">Kami menerima permintaan reset password untuk akun Anda. Silakan klik tombol di bawah ini untuk melanjutkan:</p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 16px;">Reset Password</a>
+          </div>
+          
+          <p style="font-size: 14px; color: #666; line-height: 1.5;">Atau salin dan tempel link berikut di browser Anda:<br>
+          <span style="word-break: break-all; color: #2563eb;">${resetLink}</span></p>
+          
+          <p style="font-size: 14px; color: #666; line-height: 1.5;">Link ini akan kadaluarsa dalam 15 menit. Jika Anda tidak meminta reset password, abaikan email ini.</p>
+        </div>
         
-        <p style="font-size: 14px; color: #666; line-height: 1.5;">Link ini akan kadaluarsa dalam 15 menit. Jika Anda tidak meminta reset password, abaikan email ini.</p>
+        <div style="background: #f8fafc; padding: 15px; text-align: center; font-size: 12px; color: #64748b;">
+          <p>© ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo. Hak cipta dilindungi.</p>
+        </div>
       </div>
-      
-      <div style="background: #f8fafc; padding: 15px; text-align: center; font-size: 12px; color: #64748b;">
-        <p>© ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo. Hak cipta dilindungi.</p>
-      </div>
-    </div>
-    `;
+      `;
 
     // Plain text version
     const emailText = `
-    Permintaan Reset Password - MAGIN
-    
-    Halo,
-    
-    Kami menerima permintaan reset password untuk akun Anda. 
-    Silakan gunakan link berikut untuk melanjutkan:
-    
-    ${resetLink}
-    
-    Link ini akan kadaluarsa dalam 15 menit.
-    Jika Anda tidak meminta reset password, abaikan email ini.
-    
-    © ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo
-    `;
+      Permintaan Reset Password - MAGIN
+      
+      Halo,
+      
+      Kami menerima permintaan reset password untuk akun Anda. 
+      Silakan gunakan link berikut untuk melanjutkan:
+      
+      ${resetLink}
+      
+      Link ini akan kadaluarsa dalam 15 menit.
+      Jika Anda tidak meminta reset password, abaikan email ini.
+      
+      © ${new Date().getFullYear()} MAGIN - Sistem Magang Kominfo
+      `;
 
     await sendMail(
       email,
@@ -610,20 +610,20 @@ app.post("/api/pembimbing", async (req, res) => {
         email,
         "Informasi Akun Pembimbing Magang",
         `
-    <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
-      <h2 style="color: #1E3A8A;">Selamat Datang di Sistem Magang Kominfo</h2>
-      <p>Berikut adalah kredensial akun Anda sebagai Pembimbing Magang:</p>
-      <ul>
-        <li><strong>Email:</strong> ${email}</li>
-        <li><strong>Password:</strong> ${password}</li>
-      </ul>
-      <p>Silakan login ke sistem melalui tautan berikut:</p>
-      <a href="http://localhost:3000/login" style="color: #2563EB; text-decoration: none;">http://localhost:3000/login</a>
-      <p>Jika Anda tidak merasa mendaftarkan akun ini, silakan abaikan email ini.</p>
-      <br />
-      <p>Hormat kami,<br /><strong>Tim Magang Kominfo Palembang</strong></p>
-    </div>
-    `
+      <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+        <h2 style="color: #1E3A8A;">Selamat Datang di Sistem Magang Kominfo</h2>
+        <p>Berikut adalah kredensial akun Anda sebagai Pembimbing Magang:</p>
+        <ul>
+          <li><strong>Email:</strong> ${email}</li>
+          <li><strong>Password:</strong> ${password}</li>
+        </ul>
+        <p>Silakan login ke sistem melalui tautan berikut:</p>
+        <a href="http://localhost:3000/login" style="color: #2563EB; text-decoration: none;">http://localhost:3000/login</a>
+        <p>Jika Anda tidak merasa mendaftarkan akun ini, silakan abaikan email ini.</p>
+        <br />
+        <p>Hormat kami,<br /><strong>Tim Magang Kominfo Palembang</strong></p>
+      </div>
+      `
       );
     } catch (emailError) {
       console.error("Gagal mengirim email:", emailError);
@@ -705,12 +705,12 @@ app.patch(
             "Status Pendaftaran Magang",
             `Halo,
 
-Selamat! Pendaftaran magang Anda telah disetujui ✅
+  Selamat! Pendaftaran magang Anda telah disetujui ✅
 
-Silakan login ke aplikasi untuk melihat dan mengunduh surat balasan resmi Anda.
+  Silakan login ke aplikasi untuk melihat dan mengunduh surat balasan resmi Anda.
 
-Terima kasih,
-Magin | KOMINFO Kota Palembang`
+  Terima kasih,
+  Magin | KOMINFO Kota Palembang`
           );
         } catch (emailError) {
           console.error("Gagal mengirim email notifikasi:", emailError);
@@ -965,16 +965,16 @@ app.post(
         email,
         "Konfirmasi Pendaftaran Magang",
         `
-  Halo ${email},
+    Halo ${email},
 
-  Terima kasih telah melakukan pendaftaran program magang di Kominfo Kota Palembang.
-  Saat ini, pendaftaran Anda sedang kami proses.
+    Terima kasih telah melakukan pendaftaran program magang di Kominfo Kota Palembang.
+    Saat ini, pendaftaran Anda sedang kami proses.
 
-  Anda akan menerima pemberitahuan selanjutnya setelah proses verifikasi selesai.
+    Anda akan menerima pemberitahuan selanjutnya setelah proses verifikasi selesai.
 
-  Hormat kami,  
-  Magin | Sistem magang Kominfo Kota Palembang
-  `
+    Hormat kami,  
+    Magin | Sistem magang Kominfo Kota Palembang
+    `
       );
 
       res.status(201).json({
@@ -1288,24 +1288,24 @@ app.post("/api/send-credentials", async (req, res) => {
       email,
       "Informasi Akun Pembimbing Magang",
       `
-  Halo ${email},
+    Halo ${email},
 
-  Selamat! Anda telah ditambahkan sebagai pembimbing magang pada sistem magang Kominfo Kota Palembang.
+    Selamat! Anda telah ditambahkan sebagai pembimbing magang pada sistem magang Kominfo Kota Palembang.
 
-  Berikut adalah informasi akun Anda:
+    Berikut adalah informasi akun Anda:
 
-  📧 Email   : ${email}  
-  🔑 Password: ${password}  
-  🧑‍💼 Role   : ${role}
+    📧 Email   : ${email}  
+    🔑 Password: ${password}  
+    🧑‍💼 Role   : ${role}
 
-  Silakan login ke sistem melalui tautan berikut:  
-  👉 http://localhost:3000/login
+    Silakan login ke sistem melalui tautan berikut:  
+    👉 http://localhost:3000/login
 
-  Demi keamanan, mohon segera ganti password Anda setelah login pertama.
+    Demi keamanan, mohon segera ganti password Anda setelah login pertama.
 
-  Hormat kami,  
-  Tim Magang Kominfo Kota Palembang
-  `
+    Hormat kami,  
+    Tim Magang Kominfo Kota Palembang
+    `
     );
 
     res.status(200).json({ message: "Email berhasil dikirim" });
@@ -1950,5 +1950,141 @@ app.patch("/api/pendaftaran/:id/verify-laporan", async (req, res) => {
       message: "Failed to verify report",
       error: error.message,
     });
+  }
+});
+
+// Add comment to logbook
+app.patch("/api/logbook/:id/comment", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+
+    // Verify token
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Check if user is pembimbing or admin
+    if (decoded.role !== "pembimbing" && decoded.role !== "admin") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const updatedLogbook = await Logbook.findByIdAndUpdate(
+      id,
+      {
+        comment,
+        status: comment ? "verified" : "pending", // Auto-verify when commented
+      },
+      { new: true }
+    ).populate("pendaftaran", "namaLengkap email");
+
+    if (!updatedLogbook) {
+      return res.status(404).json({ message: "Logbook tidak ditemukan" });
+    }
+
+    res.json(updatedLogbook);
+  } catch (error) {
+    console.error("Error adding comment:", error);
+    res.status(500).json({ message: "Gagal menambahkan komentar" });
+  }
+});
+
+// Middleware authenticateToken - TAMBAHKAN INI JIKA BELUM ADA
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ message: "Token diperlukan" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Token tidak valid" });
+    }
+    req.user = decoded;
+    next();
+  });
+};
+
+// GET logbooks by mahasiswa ID - TAMBAHKAN INI
+// GET logbooks by mahasiswa ID untuk pembimbing
+app.get(
+  "/api/logbook/mahasiswa/:mahasiswaId",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { mahasiswaId } = req.params;
+
+      // Pastikan user adalah pembimbing
+      if (req.user.role !== "pembimbing") {
+        return res
+          .status(403)
+          .json({ message: "Hanya pembimbing yang dapat mengakses" });
+      }
+
+      console.log("Fetching logbooks for mahasiswa:", mahasiswaId);
+
+      // Dapatkan logbook berdasarkan pendaftaran ID
+      const logbooks = await Logbook.find({ pendaftaran: mahasiswaId })
+        .populate("user", "name email")
+        .sort({ tanggal: -1, createdAt: -1 });
+
+      console.log("Found logbooks:", logbooks.length);
+      res.status(200).json(logbooks);
+    } catch (error) {
+      console.error("Error fetching mahasiswa logbooks:", error);
+      res.status(500).json({ message: "Gagal memuat logbook mahasiswa" });
+    }
+  }
+);
+
+// ADD COMMENT - FIXED VERSION
+app.patch("/api/logbook/:id/comment", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+
+    // Pastikan user adalah pembimbing
+    if (req.user.role !== "pembimbing") {
+      return res
+        .status(403)
+        .json({ message: "Hanya pembimbing yang dapat memberikan komentar" });
+    }
+
+    const logbook = await Logbook.findById(id).populate("pendaftaran");
+
+    if (!logbook) {
+      return res.status(404).json({ message: "Logbook tidak ditemukan" });
+    }
+
+    // Verifikasi bahwa pembimbing adalah pembimbing mahasiswa ini
+    if (logbook.pendaftaran.pembimbing.toString() !== req.user.id) {
+      return res
+        .status(403)
+        .json({ message: "Anda bukan pembimbing mahasiswa ini" });
+    }
+
+    const updatedLogbook = await Logbook.findByIdAndUpdate(
+      id,
+      {
+        comment,
+        commentedAt: new Date(),
+        commentedBy: req.user.id,
+        status: comment ? "dikomentari" : "menunggu",
+      },
+      { new: true }
+    ).populate("commentedBy", "nama");
+
+    res.json({
+      message: "Komentar berhasil ditambahkan",
+      logbook: updatedLogbook,
+    });
+  } catch (error) {
+    console.error("Error adding comment:", error);
+    res.status(500).json({ message: "Gagal menambahkan komentar" });
   }
 });
