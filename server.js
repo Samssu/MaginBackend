@@ -1608,6 +1608,9 @@ app.get("/api/pembimbing/:id/mahasiswa", async (req, res) => {
       "nama namaLengkap email telepon institusi universitas prodi status mulai selesai divisi"
     );
 
+    console.log("✅ Mahasiswa ditemukan:", mahasiswa.length);
+    console.log("📋 Data mahasiswa:", mahasiswa);
+
     // 3. Format response
     res.status(200).json(
       mahasiswa.map((m) => ({
@@ -2211,3 +2214,24 @@ app.patch(
     }
   }
 );
+
+// Di server.js, tambahkan endpoint untuk debug
+app.get("/api/debug/pembimbing/:id", async (req, res) => {
+  try {
+    const pembimbingId = req.params.id;
+
+    const pembimbing = await Pembimbing.findById(pembimbingId);
+    const mahasiswa = await Pendaftaran.find({
+      pembimbing: pembimbingId,
+      status: "disetujui",
+    });
+
+    res.json({
+      pembimbing,
+      jumlahMahasiswa: mahasiswa.length,
+      mahasiswa,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
