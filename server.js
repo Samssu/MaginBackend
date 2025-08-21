@@ -864,6 +864,13 @@ app.post("/api/upload-pdf", upload.single("file"), async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
+    console.log("File uploaded:", {
+      originalname: req.file.originalname,
+      filename: req.file.filename,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+    });
+
     // Pastikan file tersimpan
     const filePath = path.join(__dirname, "uploads", req.file.filename);
     if (!fs.existsSync(filePath)) {
@@ -1093,9 +1100,21 @@ app.get("/api/riwayat", async (req, res) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // Tidak perlu .select("+suratBalasan") karena field selalu diinclude
     const riwayat = await Pendaftaran.find({ email: decoded.email })
-      .populate("pembimbing", "nama divisi") // Populate data pembimbing
+      .populate("pembimbing", "nama divisi")
       .sort({ createdAt: -1 });
+
+    console.log(
+      "Data riwayat yang dikirim:",
+      riwayat.map((r) => ({
+        _id: r._id,
+        nama: r.nama,
+        status: r.status,
+        suratBalasan: r.suratBalasan,
+        hasSuratBalasan: !!r.suratBalasan,
+      }))
+    );
 
     res.json(riwayat);
   } catch (error) {
@@ -1200,17 +1219,6 @@ app.post(
     }
   }
 );
-
-// Endpoint untuk download file
-app.get("/api/download/:filename", (req, res) => {
-  const filePath = path.join(__dirname, "uploads", req.params.filename);
-
-  if (fs.existsSync(filePath)) {
-    res.download(filePath);
-  } else {
-    res.status(404).json({ message: "File not found" });
-  }
-});
 
 // Get statistics
 app.get("/api/statistik", async (req, res) => {
@@ -1561,14 +1569,23 @@ app.patch("/api/pendaftaran/:id/certificate", async (req, res) => {
   }
 });
 
-//downlaod?
-app.get("/api/download/:filename", (req, res) => {
-  const filePath = path.join(__dirname, "uploads", req.params.filename);
+// Endpoint untuk download laporan akhir
+app.get("/api/download-laporan/:filename", (req, res) => {
+  const filePath = path.join(__dirname, "uploads/laporan", req.params.filename);
+
+  console.log("Mencari file laporan di:", filePath);
 
   if (fs.existsSync(filePath)) {
-    res.download(filePath);
+    console.log("File ditemukan, mengirim...");
+    res.download(filePath, (err) => {
+      if (err) {
+        console.error("Error mengirim file:", err);
+        res.status(500).json({ message: "Gagal mengunduh file" });
+      }
+    });
   } else {
-    res.status(404).json({ message: "File not found" });
+    console.log("File tidak ditemukan:", filePath);
+    res.status(404).json({ message: "Laporan tidak ditemukan" });
   }
 });
 
@@ -2010,8 +2027,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// GET logbooks by mahasiswa ID - TAMBAHKAN INI
-// GET logbooks by mahasiswa ID untuk pembimbing
+// GET logbooks by mahasiswa ID - UNTUK PEMBIMBING DAN ADMIN
 app.get(
   "/api/logbook/mahasiswa/:mahasiswaId",
   authenticateToken,
@@ -2019,25 +2035,34 @@ app.get(
     try {
       const { mahasiswaId } = req.params;
 
-      // Pastikan user adalah pembimbing
-      if (req.user.role !== "pembimbing") {
-        return res
-          .status(403)
-          .json({ message: "Hanya pembimbing yang dapat mengakses" });
+      console.log("🔍 User accessing logbooks - Role:", req.user.role);
+      console.log("🔍 User ID:", req.user.id);
+      console.log("🔍 Mahasiswa ID:", mahasiswaId);
+
+      // UBAH INI: Izinkan admin dan pembimbing
+      if (req.user.role !== "pembimbing" && req.user.role !== "admin") {
+        console.log("❌ Access denied - Role not allowed:", req.user.role);
+        return res.status(403).json({
+          message: "Hanya pembimbing dan admin yang dapat mengakses",
+          userRole: req.user.role,
+        });
       }
 
-      console.log("Fetching logbooks for mahasiswa:", mahasiswaId);
+      console.log("✅ Access granted - Fetching logbooks...");
 
       // Dapatkan logbook berdasarkan pendaftaran ID
       const logbooks = await Logbook.find({ pendaftaran: mahasiswaId })
         .populate("user", "name email")
         .sort({ tanggal: -1, createdAt: -1 });
 
-      console.log("Found logbooks:", logbooks.length);
+      console.log("✅ Found logbooks:", logbooks.length);
       res.status(200).json(logbooks);
     } catch (error) {
-      console.error("Error fetching mahasiswa logbooks:", error);
-      res.status(500).json({ message: "Gagal memuat logbook mahasiswa" });
+      console.error("❌ Error fetching mahasiswa logbooks:", error);
+      res.status(500).json({
+        message: "Gagal memuat logbook mahasiswa",
+        error: error.message,
+      });
     }
   }
 );
@@ -2088,3 +2113,101 @@ app.patch("/api/logbook/:id/comment", authenticateToken, async (req, res) => {
     res.status(500).json({ message: "Gagal menambahkan komentar" });
   }
 });
+
+// Endpoint untuk download file
+app.get("/api/download/:filename", (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, "uploads", filename);
+
+  console.log("Mencari file di:", filePath);
+  console.log("File exists:", fs.existsSync(filePath));
+
+  if (fs.existsSync(filePath)) {
+    console.log("File ditemukan, mengirim...");
+    res.download(filePath, filename, (err) => {
+      if (err) {
+        console.error("Error mengirim file:", err);
+        res.status(500).json({ message: "Gagal mengunduh file" });
+      }
+    });
+  } else {
+    console.log("File tidak ditemukan:", filePath);
+    res.status(404).json({ message: "File tidak ditemukan" });
+  }
+});
+
+// Endpoint untuk download file
+app.get("/api/download/:filename", (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, "uploads", filename);
+
+  console.log("Mencari file di:", filePath);
+  console.log("File exists:", fs.existsSync(filePath));
+
+  if (fs.existsSync(filePath)) {
+    console.log("File ditemukan, mengirim...");
+    res.download(filePath, filename, (err) => {
+      if (err) {
+        console.error("Error mengirim file:", err);
+        res.status(500).json({ message: "Gagal mengunduh file" });
+      }
+    });
+  } else {
+    console.log("File tidak ditemukan:", filePath);
+    res.status(404).json({ message: "File tidak ditemukan" });
+  }
+});
+
+// Endpoint untuk update status dengan surat balasan
+app.patch(
+  "/api/pendaftaran/:id/status",
+  upload.single("file"), // Pastikan nama field sesuai dengan frontend
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, komentar } = req.body;
+
+      // Debug: Lihat apa yang diterima
+      console.log("=== DATA YANG DITERIMA ===");
+      console.log("Status:", status);
+      console.log("Komentar:", komentar);
+      console.log("File:", req.file);
+      console.log("Filename:", req.file?.filename);
+      console.log("=========================");
+
+      const updateData = {
+        status,
+        updatedAt: new Date(),
+        ...(komentar && { komentar }),
+      };
+
+      // Handle file upload jika status disetujui dan ada file
+      if (status === "disetujui" && req.file) {
+        const fileName = req.file.filename;
+        updateData.suratBalasan = fileName;
+
+        console.log("Surat balasan disimpan:", fileName);
+      }
+
+      console.log("Data yang akan diupdate:", updateData);
+
+      const updated = await Pendaftaran.findByIdAndUpdate(id, updateData, {
+        new: true,
+        runValidators: true,
+        // Pastikan mengembalikan field suratBalasan
+        select: "+suratBalasan",
+      });
+
+      console.log("=== SETELAH UPDATE ===");
+      console.log("ID:", updated._id);
+      console.log("Status:", updated.status);
+      console.log("Surat Balasan:", updated.suratBalasan);
+      console.log("======================");
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating status:", error);
+      res.status(500).json({ error: "Gagal memperbarui status" });
+    }
+  }
+);

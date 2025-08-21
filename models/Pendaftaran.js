@@ -26,7 +26,10 @@ const PendaftaranSchema = new mongoose.Schema(
     transkrip: String,
     rekomendasi: String,
     komentar: { type: String, default: "" },
-    suratBalasan: String,
+    suratBalasan: {
+      type: String,
+      default: "",
+    },
     certificate: String,
     certificateUploadDate: {
       type: Date,
